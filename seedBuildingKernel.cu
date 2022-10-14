@@ -54,6 +54,7 @@ for (size_t iHit = 0;matches.size() < nCuts && iHit < seed.nHits() && (cfg_.enab
 
     // If true -> getTrajStateFromVtx
     // If false -> getTrajStateFromPoint
+    // 
     
     *Propagator* https://cmssdt.cern.ch/dxr/CMSSW/source/TrackingTools/MaterialEffects/interface/PropagatorWithMaterial.h#25
  https://cmssdt.cern.ch/dxr/CMSSW/source/RecoEgamma/EgammaElectronAlgos/src/TrajSeedMatcher.cc#115
