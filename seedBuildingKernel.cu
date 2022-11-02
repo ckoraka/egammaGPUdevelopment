@@ -134,7 +134,31 @@ for (size_t iHit = 0;matches.size() < nCuts && iHit < seed.nHits() && (cfg_.enab
         GlobalTrajectoryParameters gtp(x, p, fts.charge(), theField);
         if UNLIKELY (std::abs(gtp.transverseCurvature() - rho) > theMaxDBzRatio * std::abs(rho))
           newTsosWP = TsosWP(TrajectoryStateOnSurface(), 0.);
-        newTsosWP = propagatedStateWithPath(fts, plane, gtp, s);
+        //newTsosWP = propagatedStateWithPath(fts, plane, gtp, s);
+      
+        //PropagatedStateWithPath
+        SurfaceSide side =
+            PropagationDirectionFromPath()(s, propagationDirection()) == alongMomentum ? beforeSurface : afterSurface;
+        //
+        //
+        // error propagation (if needed) and conversion to a TrajectoryStateOnSurface
+        //
+        if (fts.hasError()) {
+          //
+          // compute jacobian
+          //
+          AnalyticalCurvilinearJacobian analyticalJacobian(fts.parameters(), gtp.position(), gtp.momentum(), s);
+          const AlgebraicMatrix55& jacobian = analyticalJacobian.jacobian(); 
+          // CurvilinearTrajectoryError cte(ROOT::Math::Similarity(jacobian, fts.curvilinearError().matrix()));
+          newTsosWP = TsosWP(
+              TrajectoryStateOnSurface(gtp, ROOT::Math::Similarity(jacobian, fts.curvilinearError().matrix()), plane, side),
+              s); //Do ROOT functions on CUDA may cause problems
+        } else {
+          //
+          // return state without errors
+          //
+          newTsosWP = TsosWP(TrajectoryStateOnSurface(gtp, plane, side), s);
+        }
     }
     if (dynamic_cast<Plane*>(recHit.det()->surface()) == nullptr){ //Cylindrical Geometry
       // check curvature
@@ -158,8 +182,33 @@ for (size_t iHit = 0;matches.size() < nCuts && iHit < seed.nHits() && (cfg_.enab
 
       ConstReferenceCountingPointer<TangentPlane> plane(
           cylinder.tangentPlane(x));  // need to be here until tsos is created!
-      newTsosWP = propagatedStateWithPath(fts, *plane, gtp, s); //This needs to be implemented
+      //newTsosWP = propagatedStateWithPath(fts, *plane, gtp, s); //This needs to be implemented
+      
+      //PropagatedStateWithPath
+      SurfaceSide side =
+          PropagationDirectionFromPath()(s, propagationDirection()) == alongMomentum ? beforeSurface : afterSurface;
+      //
+      //
+      // error propagation (if needed) and conversion to a TrajectoryStateOnSurface
+      //
+      if (fts.hasError()) {
+        //
+        // compute jacobian
+        //
+        AnalyticalCurvilinearJacobian analyticalJacobian(fts.parameters(), gtp.position(), gtp.momentum(), s);
+        const AlgebraicMatrix55& jacobian = analyticalJacobian.jacobian(); 
+        // CurvilinearTrajectoryError cte(ROOT::Math::Similarity(jacobian, fts.curvilinearError().matrix()));
+        newTsosWP = TsosWP(
+            TrajectoryStateOnSurface(gtp, ROOT::Math::Similarity(jacobian, fts.curvilinearError().matrix()), plane, side),
+            s); //Do ROOT functions on CUDA may cause problems
+      } else {
+        //
+        // return state without errors
+        //
+        newTsosWP = TsosWP(TrajectoryStateOnSurface(gtp, plane, side), s);
       }
+      
+    }
 
       if UNLIKELY (!(newTsosWP.first).isValid() || materialAtSource())
         return newTsosWP;
@@ -244,11 +293,11 @@ charge
         // compute jacobian
         //
         AnalyticalCurvilinearJacobian analyticalJacobian(fts.parameters(), gtp.position(), gtp.momentum(), s);
-        const AlgebraicMatrix55& jacobian = analyticalJacobian.jacobian();
+        const AlgebraicMatrix55& jacobian = analyticalJacobian.jacobian(); 
         // CurvilinearTrajectoryError cte(ROOT::Math::Similarity(jacobian, fts.curvilinearError().matrix()));
         return TsosWP(
             TrajectoryStateOnSurface(gtp, ROOT::Math::Similarity(jacobian, fts.curvilinearError().matrix()), surface, side),
-            s);
+            s); //Do ROOT functions on CUDA may cause problems
       } else {
         //
         // return state without errors
