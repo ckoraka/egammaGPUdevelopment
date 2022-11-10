@@ -18,3 +18,7 @@ scram b -j 8
 cd egammaGPUdevelopment/egammaSeedEfficiency/test
 cmsRun egSeedEff_cfg.py
 ```
+
+**Note:** Remember to run 
+```voms-proxy-init --voms cms``` 
+to obtain grid certificate before trying to access any non-locan input .root file.
