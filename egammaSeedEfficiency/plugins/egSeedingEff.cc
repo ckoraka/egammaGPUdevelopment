@@ -20,18 +20,38 @@
 #include "FWCore/ServiceRegistry/interface/Service.h"
 #include "CommonTools/UtilAlgos/interface/TFileService.h" 
 
-// CMSSW data formats
+// CMSSW DataFormats
 #include "DataFormats/Math/interface/deltaR.h"
-#include "DataFormats/HepMCCandidate/interface/GenParticle.h"
-#include "DataFormats/EgammaReco/interface/ElectronSeed.h"
-//#include "DataFormats/PatCandidates/interface/Electron.h"
+#include "DataFormats/GsfTrackReco/interface/GsfTrack.h"
+#include "DataFormats/EgammaCandidates/interface/GsfElectron.h"
+#include "DataFormats/EgammaCandidates/interface/GsfElectronFwd.h"
 #include "DataFormats/EgammaCandidates/interface/Electron.h"
+#include "DataFormats/EgammaCandidates/interface/ElectronFwd.h"
+#include "DataFormats/EgammaReco/interface/ElectronSeed.h"
+#include "DataFormats/EgammaReco/interface/ElectronSeedFwd.h"
+#include "DataFormats/HepMCCandidate/interface/GenParticle.h"
+#include "DataFormats/TrackReco/interface/TrackBase.h" 
+#include "DataFormats/TrackerCommon/interface/TrackerTopology.h"
+
+// CMSSW sim DataFormats
+#include "SimDataFormats/TrackingAnalysis/interface/TrackingParticle.h"
+#include "SimDataFormats/TrackingAnalysis/interface/TrackingVertex.h"
+#include "SimDataFormats/TrackingHit/interface/PSimHitContainer.h"
+#include "SimDataFormats/TrackingHit/interface/PSimHit.h"
+#include "SimDataFormats/Track/interface/SimTrack.h"
+#include "SimDataFormats/TrackingHit/interface/PSimHitContainer.h"
+#include "SimDataFormats/Vertex/interface/SimVertex.h"
 #include "SimDataFormats/GeneratorProducts/interface/GenEventInfoProduct.h"
 #include "SimDataFormats/GeneratorProducts/interface/GenLumiInfoHeader.h"
-#include "DataFormats/Common/interface/TriggerResults.h"
-#include "DataFormats/TrackReco/interface/TrackBase.h" 
-#include "DataFormats/HepMCCandidate/interface/GenParticle.h"
 
+// Other includes 
+#include "Geometry/TrackerGeometryBuilder/interface/TrackerGeometry.h"
+#include "Geometry/Records/interface/TrackerDigiGeometryRecord.h"
+#include "Geometry/TrackerNumberingBuilder/interface/GeometricDet.h"
+#include "Geometry/CommonTopologies/interface/PixelTopology.h"
+#include "Geometry/CommonTopologies/interface/StripTopology.h"
+#include "Geometry/CommonDetUnit/interface/PixelGeomDetType.h"
+#include "Geometry/TrackerGeometryBuilder/interface/StripGeomDetType.h"
 
 class egSeedingEff : public edm::one::EDAnalyzer<edm::one::SharedResources, edm::one::WatchRuns, edm::one::WatchLuminosityBlocks> {
 	public:
@@ -49,9 +69,15 @@ class egSeedingEff : public edm::one::EDAnalyzer<edm::one::SharedResources, edm:
         virtual void endRun(edm::Run const&, edm::EventSetup const&) override;
         virtual void beginLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&) override;
         virtual void endLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&) override;
-        
-        const edm::EDGetTokenT<std::vector<reco::Electron>>  electronToken;
+		virtual void initialize();
+
+        const edm::EDGetTokenT<reco::ElectronCollection>  electronToken;
 		const edm::EDGetTokenT<reco::GenParticleCollection> genParticlesToken;
+		const edm::EDGetTokenT<std::vector<SimTrack>> simtracksToken;
+  		const edm::EDGetTokenT<edm::View<TrackingParticle>> trackingParticlesToken;
+
+		const edm::ESGetToken<TrackerTopology, TrackerTopologyRcd> geomToken_;
+		const edm::ESGetToken<TrackerGeometry, TrackerDigiGeometryRecord> topoToken_;
 
         TTree* tree;
 
@@ -60,15 +86,18 @@ class egSeedingEff : public edm::one::EDAnalyzer<edm::one::SharedResources, edm:
 		std::vector<float>  electron_phi;
 
 		int run_, lumi_, event_;
+		bool verbose_;
 
 };
 
 //Constructor
 egSeedingEff::egSeedingEff(const edm::ParameterSet& iConfig): 
-				electronToken  (consumes<std::vector<reco::Electron> >(iConfig.getParameter<edm::InputTag>("electron"))),
-				genParticlesToken  (consumes<reco::GenParticleCollection> (iConfig.getParameter<edm::InputTag>("genParticles")))
-
+				electronToken  (consumes<reco::ElectronCollection>(iConfig.getParameter<edm::InputTag>("electron"))),
+				genParticlesToken  (consumes<reco::GenParticleCollection> (iConfig.getParameter<edm::InputTag>("genParticles"))),
+  				trackingParticlesToken (consumes<edm::View<TrackingParticle>>(iConfig.getParameter<edm::InputTag>("trackingParticles"))),
+  				verbose_(iConfig.getParameter<bool>("verbose"))
 {
+	initialize();
 	usesResource("TFileService");	
 }
 
@@ -76,6 +105,16 @@ egSeedingEff::egSeedingEff(const edm::ParameterSet& iConfig):
 egSeedingEff::~egSeedingEff() {}
 
 void egSeedingEff::beginRun(edm::Run const& iRun, edm::EventSetup const& iSetup) {}
+
+void egSeedingEff::initialize() {
+	this -> run_ = 0;
+	this -> lumi_= 0;
+	this -> event_ = 0;
+
+	this -> electron_pt.clear();
+	this -> electron_eta.clear();
+	this -> electron_phi.clear();
+}
 
 void egSeedingEff::beginJob() 
 {
@@ -104,22 +143,17 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 
     using namespace edm;
     using namespace std;
-    
-	run_ = 0;
-	lumi_= 0;
-	event_ = 0;
 
-	electron_pt.clear();
-	electron_eta.clear();
-	electron_phi.clear();
+	//const TrackerTopology& tTopo = iSetup.getData(TopoToken_);
+	//const TrackerGeometry& tGeom = iSetup.getData(GeomToken_);
 
-
-    edm::Handle<vector<reco::Electron>> electronH;
+    edm::Handle<reco::ElectronCollection> electronH;
     iEvent.getByToken(electronToken, electronH);
-
     edm::Handle<reco::GenParticleCollection> genParticlesH;
     iEvent.getByToken(genParticlesToken, genParticlesH);
- 
+	edm::Handle<edm::View<TrackingParticle>> TrackingParticleH;
+	iEvent.getByToken(trackingParticlesToken, TrackingParticleH);
+	const edm::View<TrackingParticle>& trackingParticles = *TrackingParticleH;
 
 	//-------------- Get Event Info -----------------------------------
 
@@ -130,16 +164,32 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 
 	for (auto genItr = genParticlesH->begin(); genItr != genParticlesH->end(); ++genItr) 
 	{
-		std::cout<<" Testing gen variables "<< genItr->pdgId() <<std::endl;
+		if(abs(genItr->pdgId())==11)
+			std::cout<<" Testing gen variables "<< genItr->pdgId() <<std::endl;
 	}
 
-	for (auto eleItr = electronH->begin(); eleItr != electronH->end(); ++eleItr) 
-	{	
-		electron_pt.push_back( eleItr->pt() );
-		electron_eta.push_back( eleItr->eta() );
-		electron_phi.push_back( eleItr->phi() );
-	} 
+	for (unsigned long ntrackingparticle = 0; ntrackingparticle < trackingParticles.size(); ntrackingparticle++) {
+		const auto& tp = trackingParticles.at(ntrackingparticle);
+		std::cout<<" pT & pdgID "<<tp.p4().pt() <<" "<< tp.pdgId() <<std::endl;
+	}
 
+	if(electronH.isValid()) {
+		for (auto eleItr = electronH->begin(); eleItr != electronH->end(); ++eleItr) 
+		{	
+			auto seed = eleItr->gsfTrack()->seedRef();
+			auto rhits = seed->recHits();
+            
+			for(auto const& rhit: rhits){
+				std::cout<<" no 2"<<std::endl;
+            	if(rhit.isValid() && rhit.det() != nullptr){
+                    std::cout<<" rechits "<< rhit.isValid()<<std::endl;
+				}
+			}
+			electron_pt.push_back( eleItr->pt() );
+			electron_eta.push_back( eleItr->eta() );
+			electron_phi.push_back( eleItr->phi() );
+		} 
+	}
     tree->Fill();	
 }
 

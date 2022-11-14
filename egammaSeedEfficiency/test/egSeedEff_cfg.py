@@ -36,7 +36,9 @@ process.source = cms.Source(
 process.egammaReconstruction = cms.EDAnalyzer(
     'egSeedingEff',
      electron = cms.InputTag('hltEgammaGsfElectrons'),
-     genParticles = cms.InputTag("genParticles"),     
+     genParticles = cms.InputTag("genParticles"),   
+     trackingParticles = cms.InputTag("mix", "MergedTrackTruth"),			
+     verbose = cms.bool(True),     
 )
 
 # ------------------ path --------------------------
