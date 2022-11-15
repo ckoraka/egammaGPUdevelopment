@@ -61,25 +61,25 @@ class egSeedingEff : public edm::one::EDAnalyzer<edm::one::SharedResources, edm:
 		static void fillDescriptions(edm::ConfigurationDescriptions& descriptions);
 	
 	private:
-        virtual void beginJob() override;
-        virtual void analyze(const edm::Event&, const edm::EventSetup&) override;
-        virtual void endJob() override;
+		virtual void beginJob() override;
+		virtual void analyze(const edm::Event&, const edm::EventSetup&) override;
+		virtual void endJob() override;
 
-        virtual void beginRun(edm::Run const&, edm::EventSetup const&) override;
-        virtual void endRun(edm::Run const&, edm::EventSetup const&) override;
-        virtual void beginLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&) override;
-        virtual void endLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&) override;
+		virtual void beginRun(edm::Run const&, edm::EventSetup const&) override;
+		virtual void endRun(edm::Run const&, edm::EventSetup const&) override;
+		virtual void beginLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&) override;
+		virtual void endLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&) override;
 		virtual void initialize();
 
-        const edm::EDGetTokenT<reco::ElectronCollection>  electronToken;
+		const edm::EDGetTokenT<reco::ElectronCollection>  electronToken;
 		const edm::EDGetTokenT<reco::GenParticleCollection> genParticlesToken;
 		const edm::EDGetTokenT<std::vector<SimTrack>> simtracksToken;
-  		const edm::EDGetTokenT<edm::View<TrackingParticle>> trackingParticlesToken;
+		const edm::EDGetTokenT<edm::View<TrackingParticle>> trackingParticlesToken;
 
 		const edm::ESGetToken<TrackerTopology, TrackerTopologyRcd> geomToken_;
 		const edm::ESGetToken<TrackerGeometry, TrackerDigiGeometryRecord> topoToken_;
 
-        TTree* tree;
+		TTree* tree;
 
 		std::vector<float>  electron_pt;
 		std::vector<float>  electron_eta;
@@ -92,10 +92,10 @@ class egSeedingEff : public edm::one::EDAnalyzer<edm::one::SharedResources, edm:
 
 //Constructor
 egSeedingEff::egSeedingEff(const edm::ParameterSet& iConfig): 
-				electronToken  (consumes<reco::ElectronCollection>(iConfig.getParameter<edm::InputTag>("electron"))),
-				genParticlesToken  (consumes<reco::GenParticleCollection> (iConfig.getParameter<edm::InputTag>("genParticles"))),
-  				trackingParticlesToken (consumes<edm::View<TrackingParticle>>(iConfig.getParameter<edm::InputTag>("trackingParticles"))),
-  				verbose_(iConfig.getParameter<bool>("verbose"))
+							electronToken  (consumes<reco::ElectronCollection>(iConfig.getParameter<edm::InputTag>("electron"))),
+							genParticlesToken  (consumes<reco::GenParticleCollection> (iConfig.getParameter<edm::InputTag>("genParticles"))),
+							trackingParticlesToken (consumes<edm::View<TrackingParticle>>(iConfig.getParameter<edm::InputTag>("trackingParticles"))),
+							verbose_(iConfig.getParameter<bool>("verbose"))
 {
 	initialize();
 	usesResource("TFileService");	
@@ -121,19 +121,19 @@ void egSeedingEff::beginJob()
 
 	// Access the TFileService
 	edm::Service<TFileService> fs; 
-  
-    // Create the TTree
-    tree = fs->make<TTree>("tree"  , "tree");
 
-    tree->Branch("event"  ,&event_ , "event/I");   
-    tree->Branch("lumi"   ,&lumi_  , "lumi/I");  
-    tree->Branch("run"    ,&run_   , "run/I");    
+	// Create the TTree
+	tree = fs->make<TTree>("tree"  , "tree");
 
-    tree->Branch("electron_pt" , "std::vector<float>", &electron_pt  , 32000, 0);
-    tree->Branch("electron_eta", "std::vector<float>", &electron_eta , 32000, 0);
-    tree->Branch("electron_phi", "std::vector<float>", &electron_phi , 32000, 0);
-  
-    return ;
+	tree->Branch("event"  ,&event_ , "event/I");   
+	tree->Branch("lumi"   ,&lumi_  , "lumi/I");  
+	tree->Branch("run"    ,&run_   , "run/I");    
+
+	tree->Branch("electron_pt" , "std::vector<float>", &electron_pt  , 32000, 0);
+	tree->Branch("electron_eta", "std::vector<float>", &electron_eta , 32000, 0);
+	tree->Branch("electron_phi", "std::vector<float>", &electron_phi , 32000, 0);
+
+	return ;
 }
 
 void egSeedingEff::endJob() {}
@@ -141,38 +141,40 @@ void egSeedingEff::endRun(edm::Run const&, edm::EventSetup const&) {}
 
 void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup) {
 
-    using namespace edm;
-    using namespace std;
+	using namespace edm;
+	using namespace std;
 
 	//const TrackerTopology& tTopo = iSetup.getData(TopoToken_);
 	//const TrackerGeometry& tGeom = iSetup.getData(GeomToken_);
 
-    edm::Handle<reco::ElectronCollection> electronH;
-    iEvent.getByToken(electronToken, electronH);
-    edm::Handle<reco::GenParticleCollection> genParticlesH;
-    iEvent.getByToken(genParticlesToken, genParticlesH);
+	edm::Handle<reco::ElectronCollection> electronH;
+	iEvent.getByToken(electronToken, electronH);
+	edm::Handle<reco::GenParticleCollection> genParticlesH;
+	iEvent.getByToken(genParticlesToken, genParticlesH);
 	edm::Handle<edm::View<TrackingParticle>> TrackingParticleH;
 	iEvent.getByToken(trackingParticlesToken, TrackingParticleH);
 	const edm::View<TrackingParticle>& trackingParticles = *TrackingParticleH;
 
-	//-------------- Get Event Info -----------------------------------
-
+	//-------------- Event Info -----------------------------------
 	run_    = iEvent.id().run();
 	event_  = iEvent.id().event();
 	lumi_   = iEvent.id().luminosityBlock();
 
-
+	//-------------- Gen particle info -----------------------------------
 	for (auto genItr = genParticlesH->begin(); genItr != genParticlesH->end(); ++genItr) 
 	{
 		if(abs(genItr->pdgId())==11)
 			std::cout<<" Testing gen variables "<< genItr->pdgId() <<std::endl;
 	}
 
+	//-------------- Sim track info -----------------------------------
 	for (unsigned long ntrackingparticle = 0; ntrackingparticle < trackingParticles.size(); ntrackingparticle++) {
 		const auto& tp = trackingParticles.at(ntrackingparticle);
 		std::cout<<" pT & pdgID "<<tp.p4().pt() <<" "<< tp.pdgId() <<std::endl;
 	}
 
+	//-------------- hltGsfElectrons -----------------------------------
+	// Something is buggy here
 	if(electronH.isValid()) {
 		for (auto eleItr = electronH->begin(); eleItr != electronH->end(); ++eleItr) 
 		{	
@@ -180,17 +182,15 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 			auto rhits = seed->recHits();
             
 			for(auto const& rhit: rhits){
-				std::cout<<" no 2"<<std::endl;
-            	if(rhit.isValid() && rhit.det() != nullptr){
-                    std::cout<<" rechits "<< rhit.isValid()<<std::endl;
-				}
+					if(rhit.isValid() && rhit.det() != nullptr)
+						std::cout<<" rechits "<< rhit.isValid()<<std::endl;
 			}
 			electron_pt.push_back( eleItr->pt() );
 			electron_eta.push_back( eleItr->eta() );
 			electron_phi.push_back( eleItr->phi() );
 		} 
 	}
-    tree->Fill();	
+	tree->Fill();	
 }
 
 
