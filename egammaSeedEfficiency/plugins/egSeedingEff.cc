@@ -76,8 +76,8 @@ class egSeedingEff : public edm::one::EDAnalyzer<edm::one::SharedResources, edm:
 		const edm::EDGetTokenT<std::vector<SimTrack>> simtracksToken;
 		const edm::EDGetTokenT<edm::View<TrackingParticle>> trackingParticlesToken;
 
-		const edm::ESGetToken<TrackerTopology, TrackerTopologyRcd> geomToken_;
-		const edm::ESGetToken<TrackerGeometry, TrackerDigiGeometryRecord> topoToken_;
+		const edm::ESGetToken<TrackerTopology, TrackerTopologyRcd> topoToken_;
+		const edm::ESGetToken<TrackerGeometry, TrackerDigiGeometryRecord> geomToken_;
 
 		TTree* tree;
 
@@ -144,8 +144,10 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 	using namespace edm;
 	using namespace std;
 
-	//const TrackerTopology& tTopo = iSetup.getData(TopoToken_);
-	//const TrackerGeometry& tGeom = iSetup.getData(GeomToken_);
+  // retrieve tracker topology from geometry
+
+  const TrackerTopology* tTopo = &iSetup.getData(topoToken_);
+	//const TrackerGeometry* tGeom = &iSetup.getData(geomToken_);
 
 	edm::Handle<reco::ElectronCollection> electronH;
 	iEvent.getByToken(electronToken, electronH);
@@ -160,17 +162,34 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 	event_  = iEvent.id().event();
 	lumi_   = iEvent.id().luminosityBlock();
 
+
 	//-------------- Gen particle info -----------------------------------
 	for (auto genItr = genParticlesH->begin(); genItr != genParticlesH->end(); ++genItr) 
 	{
 		if(abs(genItr->pdgId())==11)
 			std::cout<<" Testing gen variables "<< genItr->pdgId() <<std::endl;
 	}
+	for (auto genItr = genParticlesH->begin(); genItr != genParticlesH->end(); ++genItr) 
+	{
+		if(genItr->pdgId()==23 && genItr->status()==3){
+			auto daughters = genItr->daughterRefVector();
+			if (daughters.size()==1 && abs(daughters.at(0)->pdgId())==11)
+				std::cout << "Stable electron from Z with charge " << daughters.at(0)->pdgId() << " and index "<< daughters.at(0)->pdgId() << std::endl;	
+		}
+	}
 
 	//-------------- Sim track info -----------------------------------
 	for (unsigned long ntrackingparticle = 0; ntrackingparticle < trackingParticles.size(); ntrackingparticle++) {
 		const auto& tp = trackingParticles.at(ntrackingparticle);
+  	bool isElectron = (std::abs(tp.pdgId()) == 11);
+
+		//const SimTrack *assocTrack = &(*tp->g4Track_begin());
+
+		//if(isElectron)
+		//	std::cout<<" number of layers ? is it only pixel though? "<< tp.numberOfTrackerLayers() <<std::cout;
+
 		std::cout<<" pT & pdgID "<<tp.p4().pt() <<" "<< tp.pdgId() <<std::endl;
+		//std::cout<<" sim tracks" << tp.g4Tracks();
 	}
 
 	//-------------- hltGsfElectrons -----------------------------------
@@ -178,12 +197,15 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 	if(electronH.isValid()) {
 		for (auto eleItr = electronH->begin(); eleItr != electronH->end(); ++eleItr) 
 		{	
-			auto seed = eleItr->gsfTrack()->seedRef();
+			auto gsfTrack = eleItr->gsfTrack();
+			auto seed = gsfTrack->seedRef();
 			auto rhits = seed->recHits();
-            
 			for(auto const& rhit: rhits){
-					if(rhit.isValid() && rhit.det() != nullptr)
-						std::cout<<" rechits "<< rhit.isValid()<<std::endl;
+				if(rhit.isValid() && rhit.det() != nullptr){
+					std::cout<<" rechits "<< rhit.isValid()<<std::endl;
+					DetId det = rhit.geographicalId();
+					auto subdet = rhit.det()->geographicalId().subdetId();
+				}
 			}
 			electron_pt.push_back( eleItr->pt() );
 			electron_eta.push_back( eleItr->eta() );
