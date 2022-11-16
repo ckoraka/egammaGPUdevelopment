@@ -74,8 +74,11 @@ class egSeedingEff : public edm::one::EDAnalyzer<edm::one::SharedResources, edm:
 		const edm::EDGetTokenT<reco::ElectronCollection>  electronToken;
 		const edm::EDGetTokenT<reco::GenParticleCollection> genParticlesToken;
 		const edm::EDGetTokenT<std::vector<SimTrack>> simtracksToken;
-		const edm::EDGetTokenT<edm::View<TrackingParticle>> trackingParticlesToken;
-
+		const edm::EDGetTokenT<edm::View<TrackingParticle>> trackingParticlesToken;		
+		const edm::EDGetTokenT<edm::PSimHitContainer> tokPixelBarrelHitsLowTof_;
+		const edm::EDGetTokenT<edm::PSimHitContainer> tokPixelBarrelHitsHighTof_;
+		const edm::EDGetTokenT<edm::PSimHitContainer> tokPixelEndcapHitsLowTof_;
+		const edm::EDGetTokenT<edm::PSimHitContainer> tokPixelEndcapHitsHighTof_;
 		const edm::ESGetToken<TrackerTopology, TrackerTopologyRcd> topoToken_;
 		const edm::ESGetToken<TrackerGeometry, TrackerDigiGeometryRecord> geomToken_;
 
@@ -95,6 +98,12 @@ egSeedingEff::egSeedingEff(const edm::ParameterSet& iConfig):
 							electronToken  (consumes<reco::ElectronCollection>(iConfig.getParameter<edm::InputTag>("electron"))),
 							genParticlesToken  (consumes<reco::GenParticleCollection> (iConfig.getParameter<edm::InputTag>("genParticles"))),
 							trackingParticlesToken (consumes<edm::View<TrackingParticle>>(iConfig.getParameter<edm::InputTag>("trackingParticles"))),
+							tokPixelBarrelHitsLowTof_(consumes<edm::PSimHitContainer>(edm::InputTag("g4SimHits", "TrackerHitsPixelBarrelLowTof"))),
+							tokPixelBarrelHitsHighTof_(consumes<edm::PSimHitContainer>(edm::InputTag("g4SimHits", "TrackerHitsPixelBarrelHighTof"))),
+							tokPixelEndcapHitsLowTof_(consumes<edm::PSimHitContainer>(edm::InputTag("g4SimHits", "TrackerHitsPixelEndcapLowTof"))),
+							tokPixelEndcapHitsHighTof_(consumes<edm::PSimHitContainer>(edm::InputTag("g4SimHits", "TrackerHitsPixelEndcapHighTof"))),
+							topoToken_(esConsumes()),
+						    geomToken_(esConsumes()),
 							verbose_(iConfig.getParameter<bool>("verbose"))
 {
 	initialize();
@@ -144,10 +153,8 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 	using namespace edm;
 	using namespace std;
 
-  // retrieve tracker topology from geometry
-
-  const TrackerTopology* tTopo = &iSetup.getData(topoToken_);
-	//const TrackerGeometry* tGeom = &iSetup.getData(geomToken_);
+	const TrackerTopology* tTopo = &iSetup.getData(topoToken_);
+	const TrackerGeometry* tGeom = &iSetup.getData(geomToken_);
 
 	edm::Handle<reco::ElectronCollection> electronH;
 	iEvent.getByToken(electronToken, electronH);
@@ -166,45 +173,99 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 	//-------------- Gen particle info -----------------------------------
 	for (auto genItr = genParticlesH->begin(); genItr != genParticlesH->end(); ++genItr) 
 	{
-		if(abs(genItr->pdgId())==11)
-			std::cout<<" Testing gen variables "<< genItr->pdgId() <<std::endl;
-	}
-	for (auto genItr = genParticlesH->begin(); genItr != genParticlesH->end(); ++genItr) 
-	{
-		if(genItr->pdgId()==23 && genItr->status()==3){
+		// Needs refinement - idea is to find the electrons originating fromt the Z boson
+		if(abs(genItr->pdgId())==11 && genItr->status()==1){
 			auto daughters = genItr->daughterRefVector();
-			if (daughters.size()==1 && abs(daughters.at(0)->pdgId())==11)
-				std::cout << "Stable electron from Z with charge " << daughters.at(0)->pdgId() << " and index "<< daughters.at(0)->pdgId() << std::endl;	
+			auto mothers = genItr->motherRefVector();
+			std::cout << " Particle mother pdgid & status : "<< mothers.at(0)->pdgId() <<" , "<<mothers.at(0)->status() <<std::endl;
+			//if (daughters.size()==1 && abs(daughters.at(0)->pdgId())==11)	
 		}
 	}
 
 	//-------------- Sim track info -----------------------------------
-	for (unsigned long ntrackingparticle = 0; ntrackingparticle < trackingParticles.size(); ntrackingparticle++) {
+	// Unfortunately no simHit attached to sim track - cannot extract info on how may pixel layers have hits :/
+	// At least this is my current understanding 
+	// https://github.com/cms-sw/cmssw/blob/6d2f66057131baacc2fcbdd203588c41c885b42c/SimDataFormats/TrackingAnalysis/interface/TrackingParticle.h
+	for (unsigned long ntrackingparticle = 0; ntrackingparticle < trackingParticles.size(); ntrackingparticle++) 
+	{
 		const auto& tp = trackingParticles.at(ntrackingparticle);
-  	bool isElectron = (std::abs(tp.pdgId()) == 11);
+		bool isElectron = (std::abs(tp.pdgId()) == 11);
 
-		//const SimTrack *assocTrack = &(*tp->g4Track_begin());
+      	if(!(tp.eventId().bunchCrossing() == 0 && tp.eventId().event() == 0)){continue;}
+		if(tp.charge() == 0 || tp.status() != 1) {continue;}
 
-		//if(isElectron)
-		//	std::cout<<" number of layers ? is it only pixel though? "<< tp.numberOfTrackerLayers() <<std::cout;
+		if(isElectron)
+			std::cout << " Number of layers  "<< tp.numberOfTrackerLayers() << std::endl;
 
-		std::cout<<" pT & pdgID "<<tp.p4().pt() <<" "<< tp.pdgId() <<std::endl;
-		//std::cout<<" sim tracks" << tp.g4Tracks();
+    	//for (std::vector<SimTrack>::const_iterator itrk = tp.g4Track_begin();itrk != tp.g4Track_end();++itrk) 
+		//{
+		//	std::cout << "  id " << itrk->trackId() <<std::endl;
+		//	std::cout << " Track Momentum  " << itrk->momentum() << std::endl;
+		//	std::cout << " Track ID & type " << itrk->trackId() << " " << itrk->type() << std::endl;
+		//}
+		
+		if(verbose_)
+			std::cout<<" TrackingParticle with PdgId: "<<tp.pdgId()<<" 4-momentum :("<<tp.p4().pt() <<","<<tp.p4().eta()<<","<<tp.p4().phi() <<","<< tp.p4().e()<<")"<<std::endl;
 	}
 
+	//-------------- simhit info ---------------------------------------
+
+	edm::Handle<edm::PSimHitContainer> PixelBarrelHitsLowTof;
+	iEvent.getByToken(tokPixelBarrelHitsLowTof_, PixelBarrelHitsLowTof);
+	edm::Handle<edm::PSimHitContainer> PixelBarrelHitsHighTof;
+	iEvent.getByToken(tokPixelBarrelHitsHighTof_, PixelBarrelHitsHighTof);
+	edm::Handle<edm::PSimHitContainer> PixelEndcapHitsLowTof;
+	iEvent.getByToken(tokPixelEndcapHitsLowTof_, PixelEndcapHitsLowTof);
+	edm::Handle<edm::PSimHitContainer> PixelEndcapHitsHighTof;
+	iEvent.getByToken(tokPixelEndcapHitsHighTof_, PixelEndcapHitsHighTof);
+
+
+	for (unsigned long simHitCounter = 0; simHitCounter < PixelBarrelHitsLowTof->size(); ++simHitCounter) 
+	{
+    	const PSimHit& simHit = (*PixelBarrelHitsLowTof)[simHitCounter];
+		std::cout<< " simHit.trackId() "<<simHit.trackId()<<std::endl;
+		std::cout<< " simHit.detUnitId() "<<simHit.detUnitId()<<std::endl;
+		std::cout<< " simHit.processType() "<<simHit.processType()<<std::endl;
+		std::cout<< " simHit.particleType() "<<simHit.particleType()<<std::endl;
+	}
+
+
 	//-------------- hltGsfElectrons -----------------------------------
-	// Something is buggy here
-	if(electronH.isValid()) {
+	if(electronH.isValid()) 
+	{
 		for (auto eleItr = electronH->begin(); eleItr != electronH->end(); ++eleItr) 
 		{	
 			auto gsfTrack = eleItr->gsfTrack();
 			auto seed = gsfTrack->seedRef();
 			auto rhits = seed->recHits();
+
+			// Check number of hits 
+            std::cout<<" Number of hits per seed : "<< seed->nHits() <<std::endl;	
+
+			// Check hits per Pixel layer
 			for(auto const& rhit: rhits){
-				if(rhit.isValid() && rhit.det() != nullptr){
-					std::cout<<" rechits "<< rhit.isValid()<<std::endl;
-					DetId det = rhit.geographicalId();
+				if(rhit.isValid() && rhit.det() != nullptr)
+				{
+					if(verbose_)
+						std::cout<<" rechits "<< rhit.isValid()<<std::endl;
+
+                    DetId det = rhit.geographicalId();					
 					auto subdet = rhit.det()->geographicalId().subdetId();
+                    auto trkSubDet = tGeom->geomDetSubDetector(subdet);
+
+					if(GeomDetEnumerators::isTrackerPixel(trkSubDet))
+					{
+                        if(subdet == PixelSubdetector::PixelBarrel)
+						{
+                            std::cout << "Barrel Layer: " << tTopo->pxbLayer(det) << std::endl;
+                            //bpixlayer->push_back(ttopo.pxbLayer(det));
+                        }
+                        if(subdet == PixelSubdetector::PixelEndcap)
+						{
+                            std::cout << "Endcap disk: " << tTopo->pxfDisk(det) << std::endl;
+                            //fpixlayer->push_back(tTopo.pxfDisk(det));
+                        }
+                    }
 				}
 			}
 			electron_pt.push_back( eleItr->pt() );
