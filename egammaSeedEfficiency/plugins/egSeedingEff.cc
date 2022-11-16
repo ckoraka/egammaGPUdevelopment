@@ -227,6 +227,12 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 		std::cout<< " simHit.detUnitId() "<<simHit.detUnitId()<<std::endl;
 		std::cout<< " simHit.processType() "<<simHit.processType()<<std::endl;
 		std::cout<< " simHit.particleType() "<<simHit.particleType()<<std::endl;
+
+        DetId theDetUnitId = simHit.detUnitId();					
+	    auto theDet = tGeom->idToDet(theDetUnitId);
+		if(theDetUnitId.subdetId() == PixelSubdetector::PixelBarrel){
+			std::cout << "Barrel Layer: " << tTopo->pxbLayer(theDetUnitId) << std::endl;
+		}
 	}
 
 

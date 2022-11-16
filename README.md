@@ -16,7 +16,7 @@ scram b -j 8
 **Run instructions**
 ```
 cd egammaGPUdevelopment/egammaSeedEfficiency/test
-cmsRun egSeedEff_cfg.py
+cmsRun hltRun3Summer21MC.py &> out.log
 ```
 
 **Notes:** 
@@ -26,4 +26,5 @@ cmsRun egSeedEff_cfg.py
 
 ```
 edmDumpEventContent /store/relval/CMSSW_12_6_0_pre4/RelValZEE_14/GEN-SIM-DIGI-RAW/125X_mcRun3_2022_realistic_v4-v1/2580000/94a518d8-73e4-4cba-a97f-23f8c2c9834c.root
-
+```
+3. To access the e/g seeds collection from the hltgsfelectrons one has to re-run the hlt via ```hltRun3Summer21MC.py```. 
