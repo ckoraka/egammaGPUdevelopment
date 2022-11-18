@@ -105,11 +105,13 @@ class egSeedingEff : public edm::one::EDAnalyzer<edm::one::SharedResources, edm:
 		std::vector<float>  simEle_phi;
 		std::vector<float>  simEle_E;
 
-		int  nSimHitLayers;
-		int nSimHitsLayer1;
-		int nSimHitsLayer2;
-		int nSimHitsLayer3;
-		int nSimHitsLayer4;
+		std::vector<int>   nSimHitLayers;
+		std::vector<int>  nSimHitsLayer1;
+		std::vector<int>  nSimHitsLayer2;
+		std::vector<int>  nSimHitsLayer3;
+		std::vector<int>  nSimHitsLayer4;
+
+		std::vector<int>  nRecoHitLayers;
 
 		int run_, lumi_, event_;
 		bool verbose_;
@@ -158,11 +160,14 @@ void egSeedingEff::initialize() {
 	this -> simEle_phi.clear();
 	this -> simEle_E.clear();
 
-	this -> nSimHitLayers = 0;
-	this -> nSimHitsLayer1 = 0;
-	this -> nSimHitsLayer2 = 0;
-	this -> nSimHitsLayer3 = 0;
-	this -> nSimHitsLayer4 = 0;
+	this -> nSimHitLayers.clear();
+	this -> nSimHitsLayer1.clear();
+	this -> nSimHitsLayer2.clear();
+	this -> nSimHitsLayer3.clear();
+	this -> nSimHitsLayer4.clear();
+
+	this -> nRecoHitLayers.clear();
+
 }
 
 void egSeedingEff::beginJob() 
@@ -178,9 +183,21 @@ void egSeedingEff::beginJob()
 	tree->Branch("lumi"   ,&lumi_  , "lumi/I");  
 	tree->Branch("run"    ,&run_   , "run/I");    
 
+	tree->Branch("simEle_pt" , "std::vector<float>", &simEle_pt );
+	tree->Branch("simEle_eta", "std::vector<float>", &simEle_eta );
+	tree->Branch("simEle_phi", "std::vector<float>", &simEle_phi );
+	tree->Branch("simEle_E", "std::vector<float>", &simEle_E );
+	tree->Branch("nSimHitLayers", "std::vector<int>", &nSimHitLayers  );
+	tree->Branch("nSimHitsLayer1", "std::vector<int>", &nSimHitsLayer1 );
+	tree->Branch("nSimHitsLayer2", "std::vector<int>", &nSimHitsLayer2 );
+	tree->Branch("nSimHitsLayer3", "std::vector<int>", &nSimHitsLayer3 );
+	tree->Branch("nSimHitsLayer4", "std::vector<int>", &nSimHitsLayer4 );
+
 	tree->Branch("recoEle_pt" , "std::vector<float>", &recoEle_pt );
 	tree->Branch("recoEle_eta", "std::vector<float>", &recoEle_eta );
 	tree->Branch("recoEle_phi", "std::vector<float>", &recoEle_phi );
+	tree->Branch("recoEle_E", "std::vector<float>", &recoEle_E );
+	tree->Branch("nRecoHitLayers", "std::vector<int>", &nRecoHitLayers );
 
 	return ;
 }
@@ -238,7 +255,7 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 
 	if(verbose_){
 		std::cout<<" --- Collecion of gen electrons ---- "<<std::endl;
-		for (size_t i = 0; i != genElectrons.size(); ++i) {
+		for(size_t i = 0; i != genElectrons.size(); ++i) {
 			std::cout<<" Gen electron "<< i <<" 4-momentum :("<< genElectrons.at(i).pt() <<","<<genElectrons.at(i).eta()<<","<<genElectrons.at(i).phi() <<","<< genElectrons.at(i).energy()<<")"<<std::endl;	
 		}
 		std::cout<<" ------------------------------------"<<std::endl;
@@ -248,36 +265,56 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 	// Unfortunately no simHit attached to sim track - cannot extract info on how may pixel layers have hits :/
 	// At least this is my understanding 
 	// https://github.com/cms-sw/cmssw/blob/6d2f66057131baacc2fcbdd203588c41c885b42c/SimDataFormats/TrackingAnalysis/interface/TrackingParticle.h
+	// Using the collection of genElectrons identified previously & a DR matching the collection of electron track IDs is stored 
 
 	edm::Handle<edm::View<TrackingParticle>> TrackingParticleH;
 	iEvent.getByToken(trackingParticlesToken, TrackingParticleH);
 	const edm::View<TrackingParticle>& trackingParticles = *TrackingParticleH;
+
+	std::vector<unsigned int> eleTrackIds;
+	auto sq = [](float x) { return x * x; };
+	auto dr = [sq](float x1,float x2,float y1,float y2) {return std::sqrt(sq(x1 - x2) + sq(y1 - y2));};
 
 	for (unsigned long ntrackingparticle = 0; ntrackingparticle < trackingParticles.size(); ntrackingparticle++) 
 	{
 		const auto& tp = trackingParticles.at(ntrackingparticle);
 		bool isElectron = (std::abs(tp.pdgId()) == 11);
 
-		if(!(tp.eventId().bunchCrossing() == 0 && tp.eventId().event() == 0)){
-			continue;
-		}
-		if(tp.charge() == 0 || tp.status() != 1) {
-			continue;
-		}
-
-		if(isElectron & !(tp.g4Tracks().empty()))
-			std::cout << " Number of layers  "<< tp.numberOfTrackerLayers() << std::endl;
-
-		if(verbose_)
+		if(!(tp.eventId().bunchCrossing() == 0 && tp.eventId().event() == 0)){continue;}
+		if(tp.charge() == 0 || tp.status() != 1) {continue;}
+		if(!isElectron || tp.g4Tracks().empty()){continue;}
+		for(size_t genPartCounter = 0; genPartCounter < genElectrons.size(); ++genPartCounter)
 		{
-			std::cout << " Track ID & type " << tp.g4Tracks().at(0).trackId() << " " << tp.g4Tracks().at(0).type() << std::endl;
-			std::cout<< " Event ID : " << tp.g4Tracks().at(0).eventId().event() << " and size " << tp.g4Tracks().size() << std::endl;
-			std::cout<<" TrackingParticle with PdgId: "<<tp.pdgId()<<" and 4-momentum :("<<tp.p4().pt() <<","<<tp.p4().eta()<<","<<tp.p4().phi() <<","<< tp.p4().e()<<")"<<std::endl;
+			auto genElec = genElectrons.at(genPartCounter);
+			if(dr(genElec.eta(),tp.p4().eta(),genElec.phi(),tp.p4().phi()) < 0.1)
+			{
+				eleTrackIds.push_back(tp.g4Tracks().at(0).trackId());
+				if(verbose_)
+				{
+					std::cout<< " Gen electron kinematics from TrackingParticle vs GenPartoicle collections "<<std::endl;
+					std::cout<<"Pt : "<< genElec.pt() << "," << tp.p4().pt()<<", eta : "<< genElec.eta() << "," << tp.p4().eta() <<", phi : "<< genElec.phi() << "," << tp.p4().phi()<<std::endl;
+					std::cout<<" From TrackingParticle "<<std::endl;
+					std::cout << " Number of layers  "<< tp.numberOfTrackerLayers() << std::endl;
+					std::cout << " Track ID & type " << tp.g4Tracks().at(0).trackId() << " " << tp.g4Tracks().at(0).type() << std::endl;
+					std::cout<< " Event ID : " << tp.g4Tracks().at(0).eventId().event() << " and size " << tp.g4Tracks().size() << std::endl;
+					std::cout<<" TrackingParticle with PdgId: "<<tp.pdgId()<<" and 4-momentum :("<<tp.p4().pt() <<","<<tp.p4().eta()<<","<<tp.p4().phi() <<","<< tp.p4().e()<<")"<<std::endl;
+				}
+			}
 		}
+	}	
+
+	if(verbose_){
+		std::cout<<" --- Collecion of gen electron track Ids ---- "<<std::endl;
+		for (size_t i = 0; i != eleTrackIds.size(); ++i) {
+			std::cout<<" Gen electron "<< i <<" track ID : "<< eleTrackIds.at(i) <<std::endl;	
+		}
+		std::cout<<" ---------------------------------------------"<<std::endl;
 	}
 
 	//-------------- Sim Hit info ---------------------------------------
 	// https://cmssdt.cern.ch/dxr/CMSSW/source/SimDataFormats/TrackingHit/interface/PSimHit.h
+	// Here we use the simHit parent sim trackID & the track Id determined previously from the TrackingParticle collection
+	// to associate sim hits with the gen electrons
 
 	edm::Handle<edm::PSimHitContainer> PixelBarrelHitsLowTof;
 	iEvent.getByToken(tokPixelBarrelHitsLowTof_, PixelBarrelHitsLowTof);
@@ -288,32 +325,44 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 	edm::Handle<edm::PSimHitContainer> PixelEndcapHitsHighTof;
 	iEvent.getByToken(tokPixelEndcapHitsHighTof_, PixelEndcapHitsHighTof);
 
-
-	for (unsigned long simHitCounter = 0; simHitCounter < PixelBarrelHitsLowTof->size(); ++simHitCounter) 
+	for(size_t eleTrackIdsCounter = 0; eleTrackIdsCounter < eleTrackIds.size(); ++eleTrackIdsCounter)
 	{
-    	const PSimHit& simHit = (*PixelBarrelHitsLowTof)[simHitCounter];
 
-		if(!(simHit.eventId().bunchCrossing() == 0 && simHit.eventId().event() == 0)){
-			continue;
-		}
-
-		if(verbose_)
+		for (unsigned long simHitCounter = 0; simHitCounter < PixelBarrelHitsLowTof->size(); ++simHitCounter) 
 		{
-			std::cout<< " simHit.trackId() "<<simHit.trackId()<<std::endl;
-			std::cout<< " simHit.detUnitId() "<<simHit.detUnitId()<<std::endl;
-			std::cout<< " simHit.processType() "<<simHit.processType()<<std::endl;
-			std::cout<< " simHit.particleType() "<<simHit.particleType()<<std::endl;
-			std::cout<< " simHit.eventId() "<<simHit.eventId().event()<<std::endl;
-		}
-		
-        DetId theDetUnitId = simHit.detUnitId();					
-	    auto theDet = tGeom->idToDet(theDetUnitId);
-		if(theDetUnitId.subdetId() == PixelSubdetector::PixelBarrel){
-			std::cout << "Barrel Layer: " << tTopo->pxbLayer(theDetUnitId) << std::endl;
-		}
+			const PSimHit& simHit = (*PixelBarrelHitsLowTof)[simHitCounter];
+
+			if(!(simHit.eventId().bunchCrossing() == 0 && simHit.eventId().event() == 0)){
+				continue;
+			}
+			if(abs(simHit.particleType())!=11)
+				continue;
+
+			if(eleTrackIds.at(eleTrackIdsCounter)!=simHit.trackId())
+				continue;
+
+			if(verbose_)
+			{
+				std::cout<< " simHit.trackId() "<<simHit.trackId()<<std::endl;
+				std::cout<< " simHit.detUnitId() "<<simHit.detUnitId()<<std::endl;
+				std::cout<< " simHit.processType() "<<simHit.processType()<<std::endl;
+				std::cout<< " simHit.particleType() "<<simHit.particleType()<<std::endl;
+				std::cout<< " simHit.eventId() "<<simHit.eventId().event()<<std::endl;
+			}
+
+			DetId theDetUnitId = simHit.detUnitId();					
+			auto theDet = tGeom->idToDet(theDetUnitId);
+			if(theDetUnitId.subdetId() == PixelSubdetector::PixelBarrel){
+				if(verbose_)
+					std::cout << "Barrel Layer: " << tTopo->pxbLayer(theDetUnitId) << std::endl;
+				//if(tTopo->pxbLayer(theDetUnitId)==1)
+			}
+			if(theDetUnitId.subdetId() == PixelSubdetector::PixelEndcap){
+				if(verbose_)
+					std::cout << "Endcap Layer: " << tTopo->pxbLayer(theDetUnitId) << std::endl;
+			}
+		}	
 	}
-
-
 	//-------------- hltGsfElectrons -----------------------------------
 	// https://cmssdt.cern.ch/dxr/CMSSW/source/DataFormats/EgammaCandidates/interface/GsfElectron.h
 
@@ -345,12 +394,10 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 						if(subdet == PixelSubdetector::PixelBarrel)
 						{
 							std::cout << "Barrel Layer: " << tTopo->pxbLayer(det) << std::endl;
-							//bpixlayer->push_back(ttopo.pxbLayer(det));
 						}
 						if(subdet == PixelSubdetector::PixelEndcap)
 						{
 							std::cout << "Endcap disk: " << tTopo->pxfDisk(det) << std::endl;
-							//fpixlayer->push_back(tTopo.pxfDisk(det));
 						}
 					}
 				}
