@@ -568,8 +568,6 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 						std::cout<< " Layer 4 hits BPIX : "<<nHitsPerLayer_BPIX[3] << " and FPIX " << nHitsPerLayer_FPIX[3] << std::endl;
 					}
 
-					nRecoHitLayersBPIX.push_back(nLayersBPIX);
-					nRecoHitLayersFPIX.push_back(nLayersFPIX);
 					nRecoHitsLayer1_BPIX.push_back(nHitsPerLayer_BPIX[0]);
 					nRecoHitsLayer2_BPIX.push_back(nHitsPerLayer_BPIX[1]);
 					nRecoHitsLayer3_BPIX.push_back(nHitsPerLayer_BPIX[2]);
@@ -580,7 +578,7 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 					nRecoHitsLayer4_FPIX.push_back(nHitsPerLayer_FPIX[3]);
 
 					nRecoHitLayersBPIX.push_back(nLayersBPIX);
-					nRecoHitLayersBPIX.push_back(nLayersFPIX);
+					nRecoHitLayersFPIX.push_back(nLayersFPIX);
 
 					recoEle_pt.push_back( eleItr->pt() );
 					recoEle_eta.push_back( eleItr->eta() );
@@ -592,7 +590,9 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 		}
 	}
 
-	tree->Fill();	
+	// Fill if at least one sim electron is found
+	if(simEle_pt.size()>0)
+		tree->Fill();	
 }
 
 // Taken from here : https://github.com/waredjeb/ElectronPixelMatching/blob/add_gen_particles/SeedFromTrack/SeedFromTrackAnalyzer/plugins/ElectronMatchSeed.cc#L206
