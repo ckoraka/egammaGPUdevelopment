@@ -90,11 +90,6 @@ class egSeedingEff : public edm::one::EDAnalyzer<edm::one::SharedResources, edm:
 
 		TTree* tree;
 
-		std::vector<float>  genEle_pt;
-		std::vector<float>  genEle_eta;
-		std::vector<float>  genEle_phi;
-		std::vector<float>  genEle_E;
-
 		std::vector<float>  recoEle_pt;
 		std::vector<float>  recoEle_eta;
 		std::vector<float>  recoEle_phi;
@@ -105,17 +100,33 @@ class egSeedingEff : public edm::one::EDAnalyzer<edm::one::SharedResources, edm:
 		std::vector<float>  simEle_phi;
 		std::vector<float>  simEle_E;
 
-		std::vector<int>   nSimHitLayers;
-		std::vector<int>  nSimHitsLayer1;
-		std::vector<int>  nSimHitsLayer2;
-		std::vector<int>  nSimHitsLayer3;
-		std::vector<int>  nSimHitsLayer4;
+		std::vector<float>  dr_RecoSim;
 
-		std::vector<int>  nRecoHitLayers;
+		std::vector<int>   nSimHitLayersBPIX;
+		std::vector<int>   nSimHitLayersFPIX;
+		std::vector<int>  nSimHitsLayer1_BPIX;
+		std::vector<int>  nSimHitsLayer2_BPIX;
+		std::vector<int>  nSimHitsLayer3_BPIX;
+		std::vector<int>  nSimHitsLayer4_BPIX;
+		std::vector<int>  nSimHitsLayer1_FPIX;
+		std::vector<int>  nSimHitsLayer2_FPIX;
+		std::vector<int>  nSimHitsLayer3_FPIX;
+		std::vector<int>  nSimHitsLayer4_FPIX;
+
+		std::vector<int>  nRecoHitLayersBPIX;
+		std::vector<int>  nRecoHitLayersFPIX;
+		std::vector<int>  nRecoHitsLayer1_BPIX;
+		std::vector<int>  nRecoHitsLayer2_BPIX;
+		std::vector<int>  nRecoHitsLayer3_BPIX;
+		std::vector<int>  nRecoHitsLayer4_BPIX;
+		std::vector<int>  nRecoHitsLayer1_FPIX;
+		std::vector<int>  nRecoHitsLayer2_FPIX;
+		std::vector<int>  nRecoHitsLayer3_FPIX;
+		std::vector<int>  nRecoHitsLayer4_FPIX;
 
 		int run_, lumi_, event_;
 		bool verbose_;
-
+		double DeltaR_;
 };
 
 //Constructor
@@ -129,7 +140,8 @@ egSeedingEff::egSeedingEff(const edm::ParameterSet& iConfig):
 							tokPixelEndcapHitsHighTof_(consumes<edm::PSimHitContainer>(edm::InputTag("g4SimHits", "TrackerHitsPixelEndcapHighTof"))),
 							topoToken_(esConsumes()),
 							geomToken_(esConsumes()),
-							verbose_(iConfig.getParameter<bool>("verbose"))
+							verbose_(iConfig.getParameter<bool>("verbose")),
+							DeltaR_(iConfig.getParameter<double>("deltaR"))
 {
 	initialize();
 	usesResource("TFileService");	
@@ -141,14 +153,10 @@ egSeedingEff::~egSeedingEff() {}
 void egSeedingEff::beginRun(edm::Run const& iRun, edm::EventSetup const& iSetup) {}
 
 void egSeedingEff::initialize() {
+
 	this -> run_ = 0;
 	this -> lumi_= 0;
 	this -> event_ = 0;
-
-	this -> genEle_pt.clear();
-	this -> genEle_eta.clear();
-	this -> genEle_phi.clear();
-	this -> genEle_E.clear();
 
 	this -> recoEle_pt.clear();
 	this -> recoEle_eta.clear();
@@ -160,13 +168,29 @@ void egSeedingEff::initialize() {
 	this -> simEle_phi.clear();
 	this -> simEle_E.clear();
 
-	this -> nSimHitLayers.clear();
-	this -> nSimHitsLayer1.clear();
-	this -> nSimHitsLayer2.clear();
-	this -> nSimHitsLayer3.clear();
-	this -> nSimHitsLayer4.clear();
+	this-> dr_RecoSim.clear();
 
-	this -> nRecoHitLayers.clear();
+	this -> nSimHitLayersBPIX.clear();
+	this -> nSimHitLayersFPIX.clear();
+	this -> nSimHitsLayer1_BPIX.clear();
+	this -> nSimHitsLayer2_BPIX.clear();
+	this -> nSimHitsLayer3_BPIX.clear();
+	this -> nSimHitsLayer4_BPIX.clear();
+	this -> nSimHitsLayer1_FPIX.clear();
+	this -> nSimHitsLayer2_FPIX.clear();
+	this -> nSimHitsLayer3_FPIX.clear();
+	this -> nSimHitsLayer4_FPIX.clear();
+
+	this -> nRecoHitLayersBPIX.clear();
+	this -> nRecoHitLayersFPIX.clear();
+	this -> nRecoHitsLayer1_BPIX.clear();
+	this -> nRecoHitsLayer2_BPIX.clear();
+	this -> nRecoHitsLayer3_BPIX.clear();
+	this -> nRecoHitsLayer4_BPIX.clear();
+	this -> nRecoHitsLayer1_FPIX.clear();
+	this -> nRecoHitsLayer2_FPIX.clear();
+	this -> nRecoHitsLayer3_FPIX.clear();
+	this -> nRecoHitsLayer4_FPIX.clear();
 
 }
 
@@ -187,17 +211,34 @@ void egSeedingEff::beginJob()
 	tree->Branch("simEle_eta", "std::vector<float>", &simEle_eta );
 	tree->Branch("simEle_phi", "std::vector<float>", &simEle_phi );
 	tree->Branch("simEle_E", "std::vector<float>", &simEle_E );
-	tree->Branch("nSimHitLayers", "std::vector<int>", &nSimHitLayers  );
-	tree->Branch("nSimHitsLayer1", "std::vector<int>", &nSimHitsLayer1 );
-	tree->Branch("nSimHitsLayer2", "std::vector<int>", &nSimHitsLayer2 );
-	tree->Branch("nSimHitsLayer3", "std::vector<int>", &nSimHitsLayer3 );
-	tree->Branch("nSimHitsLayer4", "std::vector<int>", &nSimHitsLayer4 );
+
+	tree->Branch("dr_RecoSim","std::vector<float>",&dr_RecoSim);
+
+	tree->Branch("nSimHitLayersBPIX", "std::vector<int>", &nSimHitLayersBPIX  );
+	tree->Branch("nSimHitLayersFPIX", "std::vector<int>", &nSimHitLayersFPIX  );
+	tree->Branch("nSimHitsLayer1_BPIX", "std::vector<int>", &nSimHitsLayer1_BPIX );
+	tree->Branch("nSimHitsLayer2_BPIX", "std::vector<int>", &nSimHitsLayer2_BPIX );
+	tree->Branch("nSimHitsLayer3_BPIX", "std::vector<int>", &nSimHitsLayer3_BPIX );
+	tree->Branch("nSimHitsLayer4_BPIX", "std::vector<int>", &nSimHitsLayer4_BPIX );
+	tree->Branch("nSimHitsLayer1_FPIX", "std::vector<int>", &nSimHitsLayer1_FPIX );
+	tree->Branch("nSimHitsLayer2_FPIX", "std::vector<int>", &nSimHitsLayer2_FPIX );
+	tree->Branch("nSimHitsLayer3_FPIX", "std::vector<int>", &nSimHitsLayer3_FPIX );
+	tree->Branch("nSimHitsLayer4_FPIX", "std::vector<int>", &nSimHitsLayer4_FPIX );
 
 	tree->Branch("recoEle_pt" , "std::vector<float>", &recoEle_pt );
 	tree->Branch("recoEle_eta", "std::vector<float>", &recoEle_eta );
 	tree->Branch("recoEle_phi", "std::vector<float>", &recoEle_phi );
 	tree->Branch("recoEle_E", "std::vector<float>", &recoEle_E );
-	tree->Branch("nRecoHitLayers", "std::vector<int>", &nRecoHitLayers );
+	tree->Branch("nRecoHitLayersBPIX", "std::vector<int>", &nRecoHitLayersBPIX );
+	tree->Branch("nRecoHitLayersFPIX", "std::vector<int>", &nRecoHitLayersFPIX );
+	tree->Branch("nRecoHitsLayer1_BPIX", "std::vector<int>", &nRecoHitsLayer1_BPIX );
+	tree->Branch("nRecoHitsLayer2_BPIX", "std::vector<int>", &nRecoHitsLayer2_BPIX );
+	tree->Branch("nRecoHitsLayer3_BPIX", "std::vector<int>", &nRecoHitsLayer3_BPIX );
+	tree->Branch("nRecoHitsLayer4_BPIX", "std::vector<int>", &nRecoHitsLayer4_BPIX );
+	tree->Branch("nRecoHitsLayer1_FPIX", "std::vector<int>", &nRecoHitsLayer1_FPIX );
+	tree->Branch("nRecoHitsLayer2_FPIX", "std::vector<int>", &nRecoHitsLayer2_FPIX );
+	tree->Branch("nRecoHitsLayer3_FPIX", "std::vector<int>", &nRecoHitsLayer3_FPIX );
+	tree->Branch("nRecoHitsLayer4_FPIX", "std::vector<int>", &nRecoHitsLayer4_FPIX );
 
 	return ;
 }
@@ -212,6 +253,8 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 
 	using namespace edm;
 	using namespace std;
+
+	initialize();
 
 	const TrackerTopology* tTopo = &iSetup.getData(topoToken_);
 	const TrackerGeometry* tGeom = &iSetup.getData(geomToken_);
@@ -286,9 +329,14 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 		for(size_t genPartCounter = 0; genPartCounter < genElectrons.size(); ++genPartCounter)
 		{
 			auto genElec = genElectrons.at(genPartCounter);
-			if(dr(genElec.eta(),tp.p4().eta(),genElec.phi(),tp.p4().phi()) < 0.1)
+			if(dr(genElec.eta(),tp.p4().eta(),genElec.phi(),tp.p4().phi()) < 0.01)
 			{
 				eleTrackIds.push_back(tp.g4Tracks().at(0).trackId());
+				simEle_pt.push_back(tp.p4().pt());
+				simEle_eta.push_back(tp.p4().eta());
+				simEle_phi.push_back(tp.p4().phi());
+				simEle_E.push_back(tp.p4().energy());
+
 				if(verbose_)
 				{
 					std::cout<< " Gen electron kinematics from TrackingParticle vs GenPartoicle collections "<<std::endl;
@@ -328,85 +376,222 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 	for(size_t eleTrackIdsCounter = 0; eleTrackIdsCounter < eleTrackIds.size(); ++eleTrackIdsCounter)
 	{
 
-		for (unsigned long simHitCounter = 0; simHitCounter < PixelBarrelHitsLowTof->size(); ++simHitCounter) 
+		unsigned int nLayersFPIX = 0;
+		unsigned int nLayersBPIX = 0;	
+		unsigned int nHitsPerLayer_BPIX[4] = {0};				
+		unsigned int nHitsPerLayer_FPIX[4] = {0};
+
+		for(unsigned int nContainer=0;nContainer <4;++nContainer)
 		{
-			const PSimHit& simHit = (*PixelBarrelHitsLowTof)[simHitCounter];
+			auto container = PixelBarrelHitsLowTof;
+			if(nContainer==1)
+				auto container = PixelBarrelHitsHighTof;
+			else if(nContainer==2)
+				auto container = PixelEndcapHitsLowTof;
+			else
+				auto container = PixelEndcapHitsHighTof;	
 
-			if(!(simHit.eventId().bunchCrossing() == 0 && simHit.eventId().event() == 0)){
-				continue;
-			}
-			if(abs(simHit.particleType())!=11)
-				continue;
-
-			if(eleTrackIds.at(eleTrackIdsCounter)!=simHit.trackId())
-				continue;
-
-			if(verbose_)
+			for(unsigned long simHitCounter = 0; simHitCounter < container->size(); ++simHitCounter) 
 			{
-				std::cout<< " simHit.trackId() "<<simHit.trackId()<<std::endl;
-				std::cout<< " simHit.detUnitId() "<<simHit.detUnitId()<<std::endl;
-				std::cout<< " simHit.processType() "<<simHit.processType()<<std::endl;
-				std::cout<< " simHit.particleType() "<<simHit.particleType()<<std::endl;
-				std::cout<< " simHit.eventId() "<<simHit.eventId().event()<<std::endl;
-			}
+				//const PSimHit& simHit = (*PixelBarrelHitsLowTof)[simHitCounter];
+				const PSimHit& simHit = (*container)[simHitCounter];
 
-			DetId theDetUnitId = simHit.detUnitId();					
-			auto theDet = tGeom->idToDet(theDetUnitId);
-			if(theDetUnitId.subdetId() == PixelSubdetector::PixelBarrel){
+				if(!(simHit.eventId().bunchCrossing() == 0 && simHit.eventId().event() == 0)){
+					continue;
+				}
+				if(abs(simHit.particleType())!=11)
+					continue;
+
+				if(eleTrackIds.at(eleTrackIdsCounter)!=simHit.trackId())
+					continue;
+
 				if(verbose_)
-					std::cout << "Barrel Layer: " << tTopo->pxbLayer(theDetUnitId) << std::endl;
-				//if(tTopo->pxbLayer(theDetUnitId)==1)
+				{
+					std::cout<< " simHit.trackId() "<<simHit.trackId()<<std::endl;
+					std::cout<< " simHit.detUnitId() "<<simHit.detUnitId()<<std::endl;
+					std::cout<< " simHit.processType() "<<simHit.processType()<<std::endl;
+					std::cout<< " simHit.particleType() "<<simHit.particleType()<<std::endl;
+					std::cout<< " simHit.eventId() "<<simHit.eventId().event()<<std::endl;
+				}
+
+				DetId theDetUnitId = simHit.detUnitId();					
+				auto theDet = tGeom->idToDet(theDetUnitId);
+				if(theDetUnitId.subdetId() == PixelSubdetector::PixelBarrel){
+					if(verbose_)
+						std::cout << "Barrel Layer: " << tTopo->pxbLayer(theDetUnitId) << std::endl;
+					if(tTopo->pxbLayer(theDetUnitId)==1)
+						++nHitsPerLayer_BPIX[0];
+					if(tTopo->pxbLayer(theDetUnitId)==2)
+						++nHitsPerLayer_BPIX[1];
+					if(tTopo->pxbLayer(theDetUnitId)==3)
+						++nHitsPerLayer_BPIX[2];
+					if(tTopo->pxbLayer(theDetUnitId)==4)
+						++nHitsPerLayer_BPIX[3];
+				}
+
+				if(theDetUnitId.subdetId() == PixelSubdetector::PixelEndcap){
+					if(verbose_)
+						std::cout << "Endcap Layer: " << tTopo->pxbLayer(theDetUnitId) << std::endl;
+					if(tTopo->pxbLayer(theDetUnitId)==1)
+						++nHitsPerLayer_FPIX[0];
+					if(tTopo->pxbLayer(theDetUnitId)==2)
+						++nHitsPerLayer_FPIX[1];
+					if(tTopo->pxbLayer(theDetUnitId)==3)
+						++nHitsPerLayer_FPIX[2];
+					if(tTopo->pxbLayer(theDetUnitId)==4)
+						++nHitsPerLayer_FPIX[3];
+				}
 			}
-			if(theDetUnitId.subdetId() == PixelSubdetector::PixelEndcap){
-				if(verbose_)
-					std::cout << "Endcap Layer: " << tTopo->pxbLayer(theDetUnitId) << std::endl;
-			}
-		}	
+		}
+
+		for(unsigned int i=0;i<4;++i)
+		{
+			if(nHitsPerLayer_BPIX[i]>0)
+				++nLayersBPIX;
+			if(nHitsPerLayer_FPIX[i]>0)
+				++nLayersFPIX;
+		}		
+
+		if(verbose_)
+		{
+			std::cout<<" Sim electron "<<std::endl;
+			std::cout<< " nLayers with hits BPIX : "<<nLayersBPIX << " and FPIX " << nLayersFPIX<< std::endl;
+			std::cout<< " Layer 1 hits BPIX : "<<nHitsPerLayer_BPIX[0] << " and FPIX " << nHitsPerLayer_FPIX[0] << std::endl;
+			std::cout<< " Layer 2 hits BPIX : "<<nHitsPerLayer_BPIX[1] << " and FPIX " << nHitsPerLayer_FPIX[1] << std::endl;
+			std::cout<< " Layer 3 hits BPIX : "<<nHitsPerLayer_BPIX[2] << " and FPIX " << nHitsPerLayer_FPIX[2] << std::endl;
+			std::cout<< " Layer 4 hits BPIX : "<<nHitsPerLayer_BPIX[3] << " and FPIX " << nHitsPerLayer_FPIX[3] << std::endl;
+		}
+
+		nSimHitLayersBPIX.push_back(nLayersBPIX);
+		nSimHitLayersFPIX.push_back(nLayersFPIX);
+		nSimHitsLayer1_BPIX.push_back(nHitsPerLayer_BPIX[0]);
+		nSimHitsLayer2_BPIX.push_back(nHitsPerLayer_BPIX[1]);
+		nSimHitsLayer3_BPIX.push_back(nHitsPerLayer_BPIX[2]);
+		nSimHitsLayer4_BPIX.push_back(nHitsPerLayer_BPIX[3]);
+		nSimHitsLayer1_FPIX.push_back(nHitsPerLayer_FPIX[0]);
+		nSimHitsLayer2_FPIX.push_back(nHitsPerLayer_FPIX[1]);
+		nSimHitsLayer3_FPIX.push_back(nHitsPerLayer_FPIX[2]);
+		nSimHitsLayer4_FPIX.push_back(nHitsPerLayer_FPIX[3]);
+
 	}
-	//-------------- hltGsfElectrons -----------------------------------
+	//-------------- hltGsfElectrons -----------------------------------~
+	// DR matching with gen electron identified previously
 	// https://cmssdt.cern.ch/dxr/CMSSW/source/DataFormats/EgammaCandidates/interface/GsfElectron.h
 
 	if(electronH.isValid()) 
 	{
-		for (auto eleItr = electronH->begin(); eleItr != electronH->end(); ++eleItr) 
-		{	
-			auto gsfTrack = eleItr->gsfTrack();
-			auto seed = gsfTrack->seedRef();
-			auto rhits = seed->recHits();
+		for(size_t genElectronCounter = 0; genElectronCounter < simEle_pt.size(); ++genElectronCounter)
+		{
+			for (auto eleItr = electronH->begin(); eleItr != electronH->end(); ++eleItr) 
+			{	
+				bool isMatched = false;
 
-			// Check number of hits 
-            std::cout<<" Number of hits per seed : "<< seed->nHits() <<std::endl;	
-
-			// Check hits per Pixel layer
-			for(auto const& rhit: rhits)
-			{
-				if(rhit.isValid() && rhit.det() != nullptr)
+				float deltaR = dr(simEle_eta.at(genElectronCounter),eleItr->eta(),simEle_phi.at(genElectronCounter),eleItr->phi());
+			
+				if( (deltaR < DeltaR_) && !isMatched)
 				{
+					isMatched = true;
+					dr_RecoSim.push_back(deltaR);
+
+					unsigned int nLayersFPIX = 0;
+					unsigned int nLayersBPIX = 0;
+					unsigned int nHitsPerLayer_BPIX[4] = {0};				
+					unsigned int nHitsPerLayer_FPIX[4] = {0};		
+
+					auto gsfTrack = eleItr->gsfTrack();
+					auto seed = gsfTrack->seedRef();
+					auto rhits = seed->recHits();
+
+					// Check number of hits 
 					if(verbose_)
-						std::cout<<" rechits "<< rhit.isValid()<<std::endl;
+						std::cout<<" Number of hits per seed : "<< seed->nHits() <<std::endl;	
 
-                    DetId det = rhit.geographicalId();					
-					auto subdet = rhit.det()->geographicalId().subdetId();
-                    auto trkSubDet = tGeom->geomDetSubDetector(subdet);
-
-					if(GeomDetEnumerators::isTrackerPixel(trkSubDet))
+					// Check hits per Pixel layer
+					for(auto const& rhit: rhits)
 					{
-						if(subdet == PixelSubdetector::PixelBarrel)
+						if(rhit.isValid() && rhit.det() != nullptr)
 						{
-							std::cout << "Barrel Layer: " << tTopo->pxbLayer(det) << std::endl;
-						}
-						if(subdet == PixelSubdetector::PixelEndcap)
-						{
-							std::cout << "Endcap disk: " << tTopo->pxfDisk(det) << std::endl;
+							if(verbose_)
+								std::cout<<" rechits "<< rhit.isValid()<<std::endl;
+
+							DetId det = rhit.geographicalId();					
+							auto subdet = rhit.det()->geographicalId().subdetId();
+							auto trkSubDet = tGeom->geomDetSubDetector(subdet);
+
+							if(GeomDetEnumerators::isTrackerPixel(trkSubDet))
+							{
+								if(subdet == PixelSubdetector::PixelBarrel)
+								{
+									if(verbose_)	
+										std::cout << "Barrel Layer: " << tTopo->pxbLayer(det) << std::endl;
+									if(tTopo->pxbLayer(det)==1)
+										++nHitsPerLayer_BPIX[0];
+									if(tTopo->pxbLayer(det)==2)
+										++nHitsPerLayer_BPIX[1];
+									if(tTopo->pxbLayer(det)==3)
+										++nHitsPerLayer_BPIX[2];
+									if(tTopo->pxbLayer(det)==4)
+										++nHitsPerLayer_BPIX[3];
+								}
+								if(subdet == PixelSubdetector::PixelEndcap)
+								{
+									if(verbose_)	
+										std::cout << "Endcap disk: " << tTopo->pxfDisk(det) << std::endl;
+									if(tTopo->pxbLayer(det)==1)
+										++nHitsPerLayer_FPIX[0];
+									if(tTopo->pxbLayer(det)==2)
+										++nHitsPerLayer_FPIX[1];
+									if(tTopo->pxbLayer(det)==3)
+										++nHitsPerLayer_FPIX[2];
+									if(tTopo->pxbLayer(det)==4)
+										++nHitsPerLayer_FPIX[3];										
+								}
+							}
 						}
 					}
+
+					for(unsigned int i=0;i<4;++i)
+					{
+						if(nHitsPerLayer_BPIX[i]>0)
+							++nLayersBPIX;
+						if(nHitsPerLayer_FPIX[i]>0)
+							++nLayersFPIX;
+					}		
+					
+					if(verbose_)
+					{
+						std::cout<<" Matched reco electron "<<std::endl;
+						std::cout<< " nLayers with hits BPIX : "<<nLayersBPIX << " and FPIX " << nLayersFPIX<< std::endl;
+						std::cout<< " Layer 1 hits BPIX : "<<nHitsPerLayer_BPIX[0] << " and FPIX " << nHitsPerLayer_FPIX[0] << std::endl;
+						std::cout<< " Layer 2 hits BPIX : "<<nHitsPerLayer_BPIX[1] << " and FPIX " << nHitsPerLayer_FPIX[1] << std::endl;
+						std::cout<< " Layer 3 hits BPIX : "<<nHitsPerLayer_BPIX[2] << " and FPIX " << nHitsPerLayer_FPIX[2] << std::endl;
+						std::cout<< " Layer 4 hits BPIX : "<<nHitsPerLayer_BPIX[3] << " and FPIX " << nHitsPerLayer_FPIX[3] << std::endl;
+					}
+
+					nRecoHitLayersBPIX.push_back(nLayersBPIX);
+					nRecoHitLayersFPIX.push_back(nLayersFPIX);
+					nRecoHitsLayer1_BPIX.push_back(nHitsPerLayer_BPIX[0]);
+					nRecoHitsLayer2_BPIX.push_back(nHitsPerLayer_BPIX[1]);
+					nRecoHitsLayer3_BPIX.push_back(nHitsPerLayer_BPIX[2]);
+					nRecoHitsLayer4_BPIX.push_back(nHitsPerLayer_BPIX[3]);
+					nRecoHitsLayer1_FPIX.push_back(nHitsPerLayer_FPIX[0]);
+					nRecoHitsLayer2_FPIX.push_back(nHitsPerLayer_FPIX[1]);
+					nRecoHitsLayer3_FPIX.push_back(nHitsPerLayer_FPIX[2]);
+					nRecoHitsLayer4_FPIX.push_back(nHitsPerLayer_FPIX[3]);
+
+					nRecoHitLayersBPIX.push_back(nLayersBPIX);
+					nRecoHitLayersBPIX.push_back(nLayersFPIX);
+
+					recoEle_pt.push_back( eleItr->pt() );
+					recoEle_eta.push_back( eleItr->eta() );
+					recoEle_phi.push_back( eleItr->phi() );
+					recoEle_E.push_back( eleItr->energy() );
+
 				}
-			}
-			recoEle_pt.push_back( eleItr->pt() );
-			recoEle_eta.push_back( eleItr->eta() );
-			recoEle_phi.push_back( eleItr->phi() );
-		} 
+			} 
+		}
 	}
+
 	tree->Fill();	
 }
 

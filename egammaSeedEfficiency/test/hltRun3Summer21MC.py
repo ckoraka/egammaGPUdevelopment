@@ -82837,8 +82837,8 @@ process.egammaReconstruction = cms.EDAnalyzer(
      electron = cms.InputTag('hltEgammaGsfElectrons'),
      genParticles = cms.InputTag("genParticles"),   
      trackingParticles = cms.InputTag("mix", "MergedTrackTruth"),			
-     #simHits = cms.InputTag("g4SimHits", "TrackerHitsPixelBarrelHighTof"),			
-     verbose = cms.bool(True),     
+     verbose = cms.bool(False),     
+     deltaR = cms.double(0.05),     
 )
 
 process.hltTrigReport = cms.EDAnalyzer( "HLTrigReport",
