@@ -452,14 +452,14 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 
 					if(theDetUnitId.subdetId() == PixelSubdetector::PixelEndcap){
 						if(verbose_)
-							std::cout << "Endcap Layer: " << tTopo->pxbLayer(theDetUnitId) << std::endl;
-						if(tTopo->pxbLayer(theDetUnitId)==1)
+							std::cout << "Endcap Layer: " << tTopo->pxfDisk(theDetUnitId) << std::endl;
+						if(tTopo->pxfDisk(theDetUnitId)==1)
 							++nHitsPerLayer_FPIX[0];
-						if(tTopo->pxbLayer(theDetUnitId)==2)
+						if(tTopo->pxfDisk(theDetUnitId)==2)
 							++nHitsPerLayer_FPIX[1];
-						if(tTopo->pxbLayer(theDetUnitId)==3)
+						if(tTopo->pxfDisk(theDetUnitId)==3)
 							++nHitsPerLayer_FPIX[2];
-						if(tTopo->pxbLayer(theDetUnitId)==4)
+						if(tTopo->pxfDisk(theDetUnitId)==4)
 							++nHitsPerLayer_FPIX[3];
 					}
 				}
@@ -560,13 +560,13 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 								{
 									if(verbose_)	
 										std::cout << "Endcap disk: " << tTopo->pxfDisk(det) << std::endl;
-									if(tTopo->pxbLayer(det)==1)
+									if(tTopo->pxfDisk(det)==1)
 										++nHitsPerLayer_FPIX[0];
-									if(tTopo->pxbLayer(det)==2)
+									if(tTopo->pxfDisk(det)==2)
 										++nHitsPerLayer_FPIX[1];
-									if(tTopo->pxbLayer(det)==3)
+									if(tTopo->pxfDisk(det)==3)
 										++nHitsPerLayer_FPIX[2];
-									if(tTopo->pxbLayer(det)==4)
+									if(tTopo->pxfDisk(det)==4)
 										++nHitsPerLayer_FPIX[3];										
 								}
 							}
