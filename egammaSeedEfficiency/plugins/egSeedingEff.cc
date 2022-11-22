@@ -348,12 +348,16 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 				simEle_E.push_back(tp.p4().energy());
 				isMatched.push_back(0);
 
+				int count = 0;
 				for (auto const &trk : tp.g4Tracks()) 
 				{
+					std::cout<<" Type : "<< trk.type()<<std::endl;
 					EncodedEventId eid(tp.eventId());
 					UniqueSimTrackId trkid(trk.trackId(), eid);
 					TrackIds.push_back(trkid);
+					++count;
 				}
+				std::cout<<" count = "<< count<<std::endl;
 
 				if(verbose_)
 				{
@@ -362,7 +366,7 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 					std::cout<<" From TrackingParticle "<<std::endl;
 					std::cout << " Number of layers  "<< tp.numberOfTrackerLayers() << std::endl;
 					std::cout << " Track ID & type " << tp.g4Tracks().at(0).trackId() << " " << tp.g4Tracks().at(0).type() << std::endl;
-					std::cout<< " Event ID : " << tp.g4Tracks().at(0).eventId().event() << " and size " << tp.g4Tracks().size() << "and raw ID " << tp.g4Tracks().at(0).eventId().rawId() << std::endl;
+					std::cout<< " Event ID : " << tp.g4Tracks().at(0).eventId().event() << " and size : " << tp.g4Tracks().size() << "and raw ID " << tp.g4Tracks().at(0).eventId().rawId() << std::endl;
 					std::cout<<" TrackingParticle with PdgId: "<<tp.pdgId()<<" and 4-momentum :("<<tp.p4().pt() <<","<<tp.p4().eta()<<","<<tp.p4().phi() <<","<< tp.p4().e()<<")"<<std::endl;
 				}
 			}
@@ -377,13 +381,22 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 		std::cout<<" ---------------------------------------------"<<std::endl;
 	}
 
+	if(verbose_){
+		std::cout<<" --- Collecion of the other track Ids ---- "<<std::endl;
+		for (size_t i = 0; i != TrackIds.size(); ++i) {
+			std::cout<<" Gen electron "<< i <<" track ID : "<< TrackIds.at(i).first << std::endl;	
+		}
+		std::cout<<" ---------------------------------------------"<<std::endl;
+	}
+
 	//-------------- Sim Hit info ---------------------------------------
 	// https://cmssdt.cern.ch/dxr/CMSSW/source/SimDataFormats/TrackingHit/interface/PSimHit.h
 	// Here we use the simHit parent sim trackID & the track Id determined previously from the TrackingParticle collection
 	// to associate sim hits with the gen electrons
-	// TrackIds.size() 
+	// Inspired from here : https://cmssdt.cern.ch/dxr/CMSSW/source/SimGeneral/TrackingAnalysis/plugins/SimHitTPAssociationProducer.cc
 
-	//for(size_t eleTrackIdsCounter = 0; eleTrackIdsCounter < TrackIds.size(); ++eleTrackIdsCounter)
+
+
 	for(size_t eleTrackIdsCounter = 0; eleTrackIdsCounter < eleTrackIds.size(); ++eleTrackIdsCounter)
 	{
 		unsigned int nLayersFPIX = 0;
@@ -391,68 +404,68 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 		unsigned int nHitsPerLayer_BPIX[4] = {0};				
 		unsigned int nHitsPerLayer_FPIX[4] = {0};
 
-		for (auto const &psit : simHit_) 
+		for(size_t TrackIdsCounter = 0; TrackIdsCounter < TrackIds.size(); ++TrackIdsCounter)
 		{
-			edm::Handle<edm::PSimHitContainer> PSimHitCollectionH;
-			iEvent.getByToken(psit, PSimHitCollectionH);
-			auto const &pSimHitCollection = *PSimHitCollectionH;			
-
-			for (unsigned int simHitCounter = 0, size = pSimHitCollection.size(); simHitCounter < size; ++simHitCounter) 
+			for (auto const &psit : simHit_) 
 			{
-				auto const &simHit = pSimHitCollection[simHitCounter];				
-				
-				// For associating with TrackingParticle collection
-				UniqueSimTrackId simTkIds(simHit.trackId(), simHit.eventId());
+				edm::Handle<edm::PSimHitContainer> PSimHitCollectionH;
+				iEvent.getByToken(psit, PSimHitCollectionH);
+				auto const &pSimHitCollection = *PSimHitCollectionH;			
 
-				if(!(simHit.eventId().bunchCrossing() == 0 && simHit.eventId().event() == 0)){
-					continue;
-				}
-				if(abs(simHit.particleType())!=11 || simHit.processType()==0)
-					continue;
-
-
-				// Double-check this
-				//if(!(TrackIds.at(eleTrackIdsCounter)==simTkIds))
-				//	continue;
-				if(eleTrackIds.at(eleTrackIdsCounter)!=simHit.trackId())
-					continue;
-
-				if(verbose_)
+				for (unsigned int simHitCounter = 0, size = pSimHitCollection.size(); simHitCounter < size; ++simHitCounter) 
 				{
-					std::cout<< " simHit.trackId() "<<simHit.trackId()<<std::endl;
-					std::cout<< " simHit.detUnitId() "<<simHit.detUnitId()<<std::endl;
-					std::cout<< " simHit.processType() "<<simHit.processType()<<std::endl;
-					std::cout<< " simHit.particleType() "<<simHit.particleType()<<std::endl;
-					std::cout<< " simHit.eventId() "<<simHit.eventId().event()<<std::endl;
-					std::cout<< " simHit.eventId().rawId() "<< simHit.eventId().rawId()<<std::endl;
-				}
+					auto const &simHit = pSimHitCollection[simHitCounter];				
 
-				DetId theDetUnitId = simHit.detUnitId();					
-				//auto theDet = tGeom->idToDet(theDetUnitId);
-				if(theDetUnitId.subdetId() == PixelSubdetector::PixelBarrel){
-					if(verbose_)
-						std::cout << "Barrel Layer: " << tTopo->pxbLayer(theDetUnitId) << std::endl;
-					if(tTopo->pxbLayer(theDetUnitId)==1)
-						++nHitsPerLayer_BPIX[0];
-					if(tTopo->pxbLayer(theDetUnitId)==2)
-						++nHitsPerLayer_BPIX[1];
-					if(tTopo->pxbLayer(theDetUnitId)==3)
-						++nHitsPerLayer_BPIX[2];
-					if(tTopo->pxbLayer(theDetUnitId)==4)
-						++nHitsPerLayer_BPIX[3];
-				}
+					// For associating with TrackingParticle collection
+					UniqueSimTrackId simTkIds(simHit.trackId(), simHit.eventId());
 
-				if(theDetUnitId.subdetId() == PixelSubdetector::PixelEndcap){
+					if(!(TrackIds.at(TrackIdsCounter)==simTkIds))
+						continue;
+					//if(eleTrackIds.at(eleTrackIdsCounter)!=simHit.trackId())
+					//	continue;
+
+					if(!(simHit.eventId().bunchCrossing() == 0 && simHit.eventId().event() == 0))
+						continue;
+
+					if(abs(simHit.particleType())!=11 || simHit.processType()==0)
+						continue;
+
 					if(verbose_)
-						std::cout << "Endcap Layer: " << tTopo->pxbLayer(theDetUnitId) << std::endl;
-					if(tTopo->pxbLayer(theDetUnitId)==1)
-						++nHitsPerLayer_FPIX[0];
-					if(tTopo->pxbLayer(theDetUnitId)==2)
-						++nHitsPerLayer_FPIX[1];
-					if(tTopo->pxbLayer(theDetUnitId)==3)
-						++nHitsPerLayer_FPIX[2];
-					if(tTopo->pxbLayer(theDetUnitId)==4)
-						++nHitsPerLayer_FPIX[3];
+					{
+						std::cout<< " simHit.trackId() "<<simHit.trackId()<<std::endl;
+						std::cout<< " simHit.detUnitId() "<<simHit.detUnitId()<<std::endl;
+						std::cout<< " simHit.processType() "<<simHit.processType()<<std::endl;
+						std::cout<< " simHit.particleType() "<<simHit.particleType()<<std::endl;
+						std::cout<< " simHit.eventId() "<<simHit.eventId().event()<<std::endl;
+						std::cout<< " simHit.eventId().rawId() "<< simHit.eventId().rawId()<<std::endl;
+					}
+
+					DetId theDetUnitId = simHit.detUnitId();					
+					if(theDetUnitId.subdetId() == PixelSubdetector::PixelBarrel){
+						if(verbose_)
+							std::cout << "Barrel Layer: " << tTopo->pxbLayer(theDetUnitId) << std::endl;
+						if(tTopo->pxbLayer(theDetUnitId)==1)
+							++nHitsPerLayer_BPIX[0];
+						if(tTopo->pxbLayer(theDetUnitId)==2)
+							++nHitsPerLayer_BPIX[1];
+						if(tTopo->pxbLayer(theDetUnitId)==3)
+							++nHitsPerLayer_BPIX[2];
+						if(tTopo->pxbLayer(theDetUnitId)==4)
+							++nHitsPerLayer_BPIX[3];
+					}
+
+					if(theDetUnitId.subdetId() == PixelSubdetector::PixelEndcap){
+						if(verbose_)
+							std::cout << "Endcap Layer: " << tTopo->pxbLayer(theDetUnitId) << std::endl;
+						if(tTopo->pxbLayer(theDetUnitId)==1)
+							++nHitsPerLayer_FPIX[0];
+						if(tTopo->pxbLayer(theDetUnitId)==2)
+							++nHitsPerLayer_FPIX[1];
+						if(tTopo->pxbLayer(theDetUnitId)==3)
+							++nHitsPerLayer_FPIX[2];
+						if(tTopo->pxbLayer(theDetUnitId)==4)
+							++nHitsPerLayer_FPIX[3];
+					}
 				}
 			}
 		}
