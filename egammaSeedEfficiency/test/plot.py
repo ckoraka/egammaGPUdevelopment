@@ -66,6 +66,8 @@ def main(options, paths):
 
     nSimVsRecoHitsBPIX = r.TH2F("recovssimBPIX",";Number of BPIX Layers with Sim Hits;Number of BPIX Layers with Reco Hits",5,0.,5.,5,0.,5.) 
     nSimVsRecoHitsFPIX = r.TH2F("recovssimFPIX",";Number of FPIX Layers with Sim Hits;Number of FPIX Layers with Reco Hits",5,0.,5.,5,0.,5.) 
+    nSimvsRecoDiffBPIX= r.TH1F("nSimvsRecoDiffBPIX",";Number of BPIX Layers with Sim Hits - Number of BPIX Layers with Reco Hits",12,-6,6) 
+    nSimvsRecoDiffFPIX= r.TH1F("nSimvsRecoDiffFPIX",";Number of FPIX Layers with Sim Hits - Number of FPIX Layers with Reco Hits",12,-6,6) 
 
 
     recoElepT = r.TH1F("recoPt",";p_{T} [GeV]",20,0.,100.) 
@@ -137,6 +139,9 @@ def main(options, paths):
             if(len(event.nSimHitLayersBPIX)==len(event.nRecoHitLayersBPIX)):
                 nSimVsRecoHitsBPIX.Fill(event.nSimHitLayersBPIX[electron],event.nRecoHitLayersBPIX[electron])
                 nSimVsRecoHitsFPIX.Fill(event.nSimHitLayersFPIX[electron],event.nRecoHitLayersFPIX[electron])
+                nSimvsRecoDiffBPIX.Fill(event.nSimHitLayersBPIX[electron]-event.nRecoHitLayersBPIX[electron])
+                nSimvsRecoDiffFPIX.Fill(event.nSimHitLayersFPIX[electron]-event.nRecoHitLayersFPIX[electron])
+
             if(event.nRecoHitsLayer1_BPIX[electron]>0):
                 totalLayers = totalLayers+1
             if(event.nRecoHitsLayer2_BPIX[electron]>0):
@@ -371,6 +376,19 @@ def main(options, paths):
     nSimVsRecoHitsFPIX.Draw("COLZ")
     paveCMS.Draw("same")
     c.SaveAs('SimVsRecoFPIX.png')  
+
+    c = r.TCanvas("c", "canvas", 900, 700)
+    c.cd()
+    nSimvsRecoDiffBPIX.Draw("HIST")
+    paveCMS.Draw("same")
+    c.SaveAs('SimDiffRecoBPIX.png')  
+
+    c = r.TCanvas("c", "canvas", 900, 700)
+    c.cd()
+    nSimvsRecoDiffFPIX.Draw("HIST")
+    paveCMS.Draw("same")
+    c.SaveAs('SimDiffRecoFPIX.png')  
+
 
 if __name__ == '__main__':
     options, paths = parse_arguments()
