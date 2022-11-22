@@ -348,16 +348,12 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 				simEle_E.push_back(tp.p4().energy());
 				isMatched.push_back(0);
 
-				int count = 0;
 				for (auto const &trk : tp.g4Tracks()) 
 				{
-					std::cout<<" Type : "<< trk.type()<<std::endl;
 					EncodedEventId eid(tp.eventId());
 					UniqueSimTrackId trkid(trk.trackId(), eid);
 					TrackIds.push_back(trkid);
-					++count;
 				}
-				std::cout<<" count = "<< count<<std::endl;
 
 				if(verbose_)
 				{
