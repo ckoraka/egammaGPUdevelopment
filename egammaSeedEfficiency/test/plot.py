@@ -21,7 +21,7 @@ def parse_arguments():
     parser.add_option(  "-i", "--input",
                         help="""Input .root file""",
                         dest = "input",
-                        default = "outputAnalyser.root"
+                        default = "outputFromSeedEff.root"
                     )
 
     (options, args) = parser.parse_args()
@@ -53,15 +53,15 @@ def main(options, paths):
     simZpeak = r.TH1F("simMass",";mass [GeV]",20,50.,150.)
 
     nRecoHits = r.TH1F("nRecoHits",";Number of BPIX Layers with Hits",6,0,6) 
-    nRecoHitsL1 = r.TH1F("nRecoHitsL1",";Number of Simulated BPIX Hits in Layer1 ",6,0,6) 
-    nRecoHitsL2 = r.TH1F("nRecoHitsL2",";Number of Simulated BPIX Hits in Layer2",6,0,6) 
-    nRecoHitsL3 = r.TH1F("nRecoHitsL3",";Number of Simulated BPIX Hits in Layer3",6,0,6) 
-    nRecoHitsL4 = r.TH1F("nRecoHitsL4",";Number of Simulated BPIX Hits in Layer4",6,0,6) 
-    nRecoHitsFPIX= r.TH1F("nRecoHitsFPIX",";Number of FPIX Layers with Hits",6,0,6) 
-    nRecoHitsL1FPIX = r.TH1F("nRecoHitsL1FPIX",";Number of Simulated FPIX Hits in Layer1 ",6,0,6) 
-    nRecoHitsL2FPIX = r.TH1F("nRecoHitsL2FPIX",";Number of Simulated FPIX Hits in Layer2",6,0,6) 
-    nRecoHitsL3FPIX = r.TH1F("nRecoHitsL3FPIX",";Number of Simulated FPIX Hits in Layer3",6,0,6) 
-    nRecoHitsL4FPIX = r.TH1F("nRecoHitsL4FPIX",";Number of Simulated FPIX Hits in Layer4",6,0,6) 
+    nRecoHitsL1 = r.TH1F("nRecoHitsL1",";Number of Simulated BPIX Hits in Layer1 ",8,0,8) 
+    nRecoHitsL2 = r.TH1F("nRecoHitsL2",";Number of Simulated BPIX Hits in Layer2",8,0,8)
+    nRecoHitsL3 = r.TH1F("nRecoHitsL3",";Number of Simulated BPIX Hits in Layer3",8,0,8) 
+    nRecoHitsL4 = r.TH1F("nRecoHitsL4",";Number of Simulated BPIX Hits in Layer4",8,0,8) 
+    nRecoHitsFPIX= r.TH1F("nRecoHitsFPIX",";Number of FPIX Layers with Hits",6,0,6)
+    nRecoHitsL1FPIX = r.TH1F("nRecoHitsL1FPIX",";Number of Simulated FPIX Hits in Layer1 ",8,0,8)
+    nRecoHitsL2FPIX = r.TH1F("nRecoHitsL2FPIX",";Number of Simulated FPIX Hits in Layer2",8,0,8)
+    nRecoHitsL3FPIX = r.TH1F("nRecoHitsL3FPIX",";Number of Simulated FPIX Hits in Layer3",8,0,8) 
+    nRecoHitsL4FPIX = r.TH1F("nRecoHitsL4FPIX",";Number of Simulated FPIX Hits in Layer4",8,0,8) 
     nRecoHitsTotal= r.TH1F("nRecoHitsTotal",";Number of Total Layers with Hits",9,0,9) 
 
     nSimVsRecoHitsBPIX = r.TH2F("recovssimBPIX",";Number of BPIX Layers with Sim Hits;Number of BPIX Layers with Reco Hits",5,0.,5.,5,0.,5.) 
@@ -81,38 +81,38 @@ def main(options, paths):
     for event in f.Get("egammaReconstruction/tree"):
         totalLayers = 0
         for electron in range(0,len(event.nSimHitLayersBPIX)):
-            if(event.isMatched[electron]):
-                nSimHits.Fill(event.nSimHitLayersBPIX[electron])  
-                nSimHitsL1.Fill(event.nSimHitsLayer1_BPIX[electron])  
-                nSimHitsL2.Fill(event.nSimHitsLayer2_BPIX[electron])  
-                nSimHitsL3.Fill(event.nSimHitsLayer3_BPIX[electron])  
-                nSimHitsL4.Fill(event.nSimHitsLayer4_BPIX[electron])  
-                nSimHitsFPIX.Fill(event.nSimHitLayersFPIX[electron])  
-                nSimHitsL1FPIX.Fill(event.nSimHitsLayer1_FPIX[electron])  
-                nSimHitsL2FPIX.Fill(event.nSimHitsLayer2_FPIX[electron])  
-                nSimHitsL3FPIX.Fill(event.nSimHitsLayer3_FPIX[electron])  
-                nSimHitsL4FPIX.Fill(event.nSimHitsLayer4_FPIX[electron])  
-                simElepT.Fill(event.simEle_pt[electron]) 
-                simEleEta.Fill(event.simEle_eta[electron]) 
-                simElePhi.Fill(event.simEle_phi[electron]) 
+            #if(event.isMatched[electron]):
+            nSimHits.Fill(event.nSimHitLayersBPIX[electron])  
+            nSimHitsL1.Fill(event.nSimHitsLayer1_BPIX[electron])  
+            nSimHitsL2.Fill(event.nSimHitsLayer2_BPIX[electron])  
+            nSimHitsL3.Fill(event.nSimHitsLayer3_BPIX[electron])  
+            nSimHitsL4.Fill(event.nSimHitsLayer4_BPIX[electron])  
+            nSimHitsFPIX.Fill(event.nSimHitLayersFPIX[electron])  
+            nSimHitsL1FPIX.Fill(event.nSimHitsLayer1_FPIX[electron])  
+            nSimHitsL2FPIX.Fill(event.nSimHitsLayer2_FPIX[electron])  
+            nSimHitsL3FPIX.Fill(event.nSimHitsLayer3_FPIX[electron])  
+            nSimHitsL4FPIX.Fill(event.nSimHitsLayer4_FPIX[electron])  
+            simElepT.Fill(event.simEle_pt[electron]) 
+            simEleEta.Fill(event.simEle_eta[electron]) 
+            simElePhi.Fill(event.simEle_phi[electron]) 
 
-                if(event.nSimHitsLayer1_BPIX[electron]>0):
-                    totalLayers = totalLayers+1
-                if(event.nSimHitsLayer2_BPIX[electron]>0):
-                    totalLayers = totalLayers+1
-                if(event.nSimHitsLayer3_BPIX[electron]>0):
-                    totalLayers = totalLayers+1
-                if(event.nSimHitsLayer4_BPIX[electron]>0):
-                    totalLayers = totalLayers+1
-                if(event.nSimHitsLayer1_FPIX[electron]>0):
-                    totalLayers = totalLayers+1
-                if(event.nSimHitsLayer2_FPIX[electron]>0):
-                    totalLayers = totalLayers+1
-                if(event.nSimHitsLayer3_FPIX[electron]>0):
-                    totalLayers = totalLayers+1
-                if(event.nSimHitsLayer4_FPIX[electron]>0):
-                    totalLayers = totalLayers+1
-                nSimHitsTotal.Fill(totalLayers)
+            if(event.nSimHitsLayer1_BPIX[electron]>0):
+                totalLayers = totalLayers+1
+            if(event.nSimHitsLayer2_BPIX[electron]>0):
+                totalLayers = totalLayers+1
+            if(event.nSimHitsLayer3_BPIX[electron]>0):
+                totalLayers = totalLayers+1
+            if(event.nSimHitsLayer4_BPIX[electron]>0):
+                totalLayers = totalLayers+1
+            if(event.nSimHitsLayer1_FPIX[electron]>0):
+                totalLayers = totalLayers+1
+            if(event.nSimHitsLayer2_FPIX[electron]>0):
+                totalLayers = totalLayers+1
+            if(event.nSimHitsLayer3_FPIX[electron]>0):
+                totalLayers = totalLayers+1
+            if(event.nSimHitsLayer4_FPIX[electron]>0):
+                totalLayers = totalLayers+1
+            nSimHitsTotal.Fill(totalLayers)
 
         if(len(event.simEle_pt)==2):
             v1 = r.TLorentzVector()
@@ -133,9 +133,12 @@ def main(options, paths):
             nRecoHitsL2FPIX.Fill(event.nRecoHitsLayer2_FPIX[electron])  
             nRecoHitsL3FPIX.Fill(event.nRecoHitsLayer3_FPIX[electron])  
             nRecoHitsL4FPIX.Fill(event.nRecoHitsLayer4_FPIX[electron])  
-            recoElepT.Fill(event.recoEle_pt[electron]) 
-            recoEleEta.Fill(event.recoEle_eta[electron]) 
-            recoElePhi.Fill(event.recoEle_phi[electron]) 
+            index=0
+            if(event.isMatched[electron]):
+                recoElepT.Fill(event.recoEle_pt[index]) 
+                recoEleEta.Fill(event.recoEle_eta[index]) 
+                recoElePhi.Fill(event.recoEle_phi[index]) 
+                index = index+1
             if(len(event.nSimHitLayersBPIX)==len(event.nRecoHitLayersBPIX)):
                 nSimVsRecoHitsBPIX.Fill(event.nSimHitLayersBPIX[electron],event.nRecoHitLayersBPIX[electron])
                 nSimVsRecoHitsFPIX.Fill(event.nSimHitLayersFPIX[electron],event.nRecoHitLayersFPIX[electron])
@@ -184,8 +187,8 @@ def main(options, paths):
     l0 = r.TLegend(.7, .72, .89, .85)
     l0.AddEntry(nSimHits,"Simulated","l")
     l0.AddEntry(nRecoHits,"Reconstructed","l")
-    nRecoHits.Draw("HIST")
-    nSimHits.Draw("HIST same")
+    nSimHits.Draw("HIST")
+    nRecoHits.Draw("HIST same")
     paveCMS.Draw("same")
     l0.Draw("same")
     c.SaveAs('nHitsBPIX.png')
