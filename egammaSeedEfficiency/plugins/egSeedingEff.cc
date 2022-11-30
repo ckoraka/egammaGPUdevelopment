@@ -38,6 +38,7 @@
 #include "DataFormats/HepMCCandidate/interface/GenParticle.h"
 #include "DataFormats/TrackReco/interface/TrackBase.h" 
 #include "DataFormats/TrackerCommon/interface/TrackerTopology.h"
+#include "DataFormats/TrackerRecHit2D/interface/SiPixelRecHitCollection.h"
 
 // CMSSW sim DataFormats
 #include "SimDataFormats/TrackingAnalysis/interface/TrackingParticle.h"
@@ -60,6 +61,8 @@
 #include "Geometry/CommonDetUnit/interface/PixelGeomDetType.h"
 #include "Geometry/TrackerGeometryBuilder/interface/StripGeomDetType.h"
 
+#include "SimTracker/TrackerHitAssociation/interface/ClusterTPAssociation.h"
+
 class egSeedingEff : public edm::one::EDAnalyzer<edm::one::SharedResources, edm::one::WatchRuns, edm::one::WatchLuminosityBlocks> {
 	public:
 		explicit egSeedingEff(const edm::ParameterSet&);
@@ -81,10 +84,13 @@ class egSeedingEff : public edm::one::EDAnalyzer<edm::one::SharedResources, edm:
 		const edm::EDGetTokenT<reco::ElectronCollection>  electronToken;
 		const edm::EDGetTokenT<reco::GenParticleCollection> genParticlesToken;
 		const edm::EDGetTokenT<std::vector<SimTrack>> simtracksToken;
-		const edm::EDGetTokenT<edm::View<TrackingParticle>> trackingParticlesToken;		
+		const edm::EDGetTokenT<TrackingParticleCollection> trackingParticlesToken;		
 		const edm::ESGetToken<TrackerTopology, TrackerTopologyRcd> topoToken_;
 		const edm::ESGetToken<TrackerGeometry, TrackerDigiGeometryRecord> geomToken_;
 		std::vector<edm::EDGetTokenT<edm::PSimHitContainer>> simHit_;
+		const edm::EDGetTokenT<ClusterTPAssociation>  clusterTPAssocToken_;
+		const edm::EDGetTokenT<SiPixelRecHitCollection>  pixelRecHitToken_;
+
 
 		TTree* tree;
 
@@ -126,16 +132,19 @@ class egSeedingEff : public edm::one::EDAnalyzer<edm::one::SharedResources, edm:
 		int run_, lumi_, event_;
 		bool verbose_;
 		double DeltaR_;
+		const bool useGsfElectrons = false;
 };
 
 //Constructor
 egSeedingEff::egSeedingEff(const edm::ParameterSet& iConfig): 
 							electronToken  (consumes<reco::ElectronCollection>(iConfig.getParameter<edm::InputTag>("electron"))),
 							genParticlesToken  (consumes<reco::GenParticleCollection> (iConfig.getParameter<edm::InputTag>("genParticles"))),
-							trackingParticlesToken (consumes<edm::View<TrackingParticle>>(iConfig.getParameter<edm::InputTag>("trackingParticles"))),
+							trackingParticlesToken (consumes<TrackingParticleCollection>(iConfig.getParameter<edm::InputTag>("trackingParticles"))),
 							topoToken_(esConsumes()),
 							geomToken_(esConsumes()),
 							simHit_(),
+							clusterTPAssocToken_(consumes<ClusterTPAssociation>(iConfig.getParameter<edm::InputTag>("cluster2TPSrc"))),
+							pixelRecHitToken_(consumes<SiPixelRecHitCollection>(iConfig.getParameter<edm::InputTag>("pixelRecHits"))),							
 							verbose_(iConfig.getParameter<bool>("verbose")),
 							DeltaR_(iConfig.getParameter<double>("deltaR"))
 {
@@ -195,7 +204,6 @@ void egSeedingEff::initialize() {
 	this -> nRecoHitsLayer2_FPIX.clear();
 	this -> nRecoHitsLayer3_FPIX.clear();
 	this -> nRecoHitsLayer4_FPIX.clear();
-
 }
 
 void egSeedingEff::beginJob() 
@@ -254,6 +262,8 @@ void egSeedingEff::endRun(edm::Run const&, edm::EventSetup const&) {}
 
 reco::GenParticle get_lastcopy_prefsrSN(reco::GenParticle part);
 reco::GenParticle get_lastcopySN(reco::GenParticle part);
+using P = std::pair<OmniClusterRef, TrackingParticleRef>;
+bool compare(const P &i, const P &j) { return i.second.index() > j.second.index(); }
 
 void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup) {
 
@@ -316,13 +326,13 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 	// https://github.com/cms-sw/cmssw/blob/6d2f66057131baacc2fcbdd203588c41c885b42c/SimDataFormats/TrackingAnalysis/interface/TrackingParticle.h
 	// Using the collection of genElectrons identified previously & a DR matching the collection of electron track IDs is stored 
 
-	edm::Handle<edm::View<TrackingParticle>> TrackingParticleH;
+	edm::Handle<TrackingParticleCollection> TrackingParticleH;
 	iEvent.getByToken(trackingParticlesToken, TrackingParticleH);
-	const edm::View<TrackingParticle>& trackingParticles = *TrackingParticleH;
-
+	const TrackingParticleCollection& trackingParticles = *TrackingParticleH;
+	TrackingParticleRefVector trackingPartRefs;
 	std::vector<unsigned int> eleTrackIds;
 	std::vector<std::pair<uint32_t, EncodedEventId>> TrackIds;
-
+	
 	auto sq = [](float x) { return x * x; };
 	auto dr = [sq](float x1,float x2,float y1,float y2) {return std::sqrt(sq(x1 - x2) + sq(y1 - y2));};
 
@@ -330,6 +340,8 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 	{
 		const auto& tp = trackingParticles.at(ntrackingparticle);
 		bool isElectron = (std::abs(tp.pdgId()) == 11);
+
+		TrackingParticleRef trackingParticleRef(TrackingParticleH, ntrackingparticle);
 
 		if(!(tp.eventId().bunchCrossing() == 0 && tp.eventId().event() == 0)){continue;}
 		if(tp.charge() == 0 || tp.status() != 1) {continue;}
@@ -347,6 +359,7 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 				simEle_phi.push_back(tp.p4().phi());
 				simEle_E.push_back(tp.p4().energy());
 				isMatched.push_back(0);
+				trackingPartRefs.push_back(trackingParticleRef);
 
 				for (auto const &trk : tp.g4Tracks()) 
 				{
@@ -357,9 +370,9 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 
 				if(verbose_)
 				{
-					std::cout<< " Gen electron kinematics from TrackingParticle vs GenParticle collections "<<std::endl;
+					std::cout<< " Gen electron kinematics from TrackingParticle vs GenParticle collections : "<<std::endl;
 					std::cout<<"Pt : "<< genElec.pt() << "," << tp.p4().pt()<<", eta : "<< genElec.eta() << "," << tp.p4().eta() <<", phi : "<< genElec.phi() << "," << tp.p4().phi()<<std::endl;
-					std::cout<<" From TrackingParticle "<<std::endl;
+					std::cout<<" From TrackingParticle : "<<std::endl;
 					std::cout << " Number of layers  "<< tp.numberOfTrackerLayers() << std::endl;
 					std::cout << " Track ID & type " << tp.g4Tracks().at(0).trackId() << " " << tp.g4Tracks().at(0).type() << std::endl;
 					std::cout<< " Event ID : " << tp.g4Tracks().at(0).eventId().event() << " and size : " << tp.g4Tracks().size() << "and raw ID " << tp.g4Tracks().at(0).eventId().rawId() << std::endl;
@@ -370,15 +383,11 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 	}	
 
 	if(verbose_){
-		std::cout<<" --- Collecion of gen electron track Ids ---- "<<std::endl;
+		std::cout<<" --- Collecion of track IDs from eleTrackIds ---- "<<std::endl;
 		for (size_t i = 0; i != eleTrackIds.size(); ++i) {
 			std::cout<<" Gen electron "<< i <<" track ID : "<< eleTrackIds.at(i) <<std::endl;	
 		}
-		std::cout<<" ---------------------------------------------"<<std::endl;
-	}
-
-	if(verbose_){
-		std::cout<<" --- Collecion of the other track Ids ---- "<<std::endl;
+		std::cout<<" --- Collecion of all track ids from TrackIds  ---- "<<std::endl;
 		for (size_t i = 0; i != TrackIds.size(); ++i) {
 			std::cout<<" Gen electron "<< i <<" track ID : "<< TrackIds.at(i).first << std::endl;	
 		}
@@ -390,8 +399,6 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 	// Here we use the simHit parent sim trackID & the track Id determined previously from the TrackingParticle collection
 	// to associate sim hits with the gen electrons
 	// Inspired from here : https://cmssdt.cern.ch/dxr/CMSSW/source/SimGeneral/TrackingAnalysis/plugins/SimHitTPAssociationProducer.cc
-
-
 
 	for(size_t eleTrackIdsCounter = 0; eleTrackIdsCounter < eleTrackIds.size(); ++eleTrackIdsCounter)
 	{
@@ -417,13 +424,13 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 
 					if(!(TrackIds.at(TrackIdsCounter)==simTkIds))
 						continue;
-					//if(eleTrackIds.at(eleTrackIdsCounter)!=simHit.trackId())
-					//	continue;
 
 					if(!(simHit.eventId().bunchCrossing() == 0 && simHit.eventId().event() == 0))
 						continue;
 
-					if(abs(simHit.particleType())!=11 || simHit.processType()==0)
+					//if(abs(simHit.particleType())!=11 || simHit.processType()==0)
+					//	continue;
+					if(abs(simHit.particleType())!=11)
 						continue;
 
 					if(verbose_)
@@ -476,7 +483,7 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 
 		if(verbose_)
 		{
-			std::cout<<" Sim electron "<<std::endl;
+			std::cout<< " Sim electron "<<std::endl;
 			std::cout<< " nLayers with hits BPIX : "<<nLayersBPIX << " and FPIX " << nLayersFPIX<< std::endl;
 			std::cout<< " Layer 1 hits BPIX : "<<nHitsPerLayer_BPIX[0] << " and FPIX " << nHitsPerLayer_FPIX[0] << std::endl;
 			std::cout<< " Layer 2 hits BPIX : "<<nHitsPerLayer_BPIX[1] << " and FPIX " << nHitsPerLayer_FPIX[1] << std::endl;
@@ -494,8 +501,130 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 		nSimHitsLayer2_FPIX.push_back(nHitsPerLayer_FPIX[1]);
 		nSimHitsLayer3_FPIX.push_back(nHitsPerLayer_FPIX[2]);
 		nSimHitsLayer4_FPIX.push_back(nHitsPerLayer_FPIX[3]);
-
 	}
+
+	// ---------------- TP to Cluster Association ------------------------------------------------------
+	// Access the Tracker RecHits & associate them with the corresponding TrackingParticle by using the ClusterTPAssociationProducer
+	// https://cmssdt.cern.ch/dxr/CMSSW/source/SimTracker/TrackerHitAssociation/plugins/ClusterTPAssociationProducer.cc
+
+	edm::Handle<ClusterTPAssociation> clusterTPAssocH;
+	iEvent.getByToken(clusterTPAssocToken_,clusterTPAssocH);
+	const ClusterTPAssociation& clusterToTPMap = *clusterTPAssocH;
+	edm::Handle<SiPixelRecHitCollection> recHitCollH;
+	iEvent.getByToken(pixelRecHitToken_, recHitCollH);
+	// ---------------- RecHits -----------------------------------------------------------------------
+	const SiPixelRecHitCollection* rechits;
+	rechits = recHitCollH.product();
+	// --------- Look for equal_range of a given TrackingParticle --------------------------------------
+	// Use the collection of TrackingParticleRefs stored in the previous step after being matched with a 
+	// gen electron coming from a Z boson decay
+
+	auto clusterTPmap = clusterToTPMap.map();
+	std::sort(clusterTPmap.begin(), clusterTPmap.end(), compare);
+
+	if(!useGsfElectrons)
+	{
+		for (RefVector<TrackingParticleCollection>::const_iterator it = trackingPartRefs.begin(); it != trackingPartRefs.end();it++) 
+		{
+			if(verbose_)
+				std::cout<<"Tracking Particle pT : "<< (*it)->pt() << std::endl;
+
+			unsigned int nLayersFPIX = 0;
+			unsigned int nLayersBPIX = 0;
+			unsigned int nHitsPerLayer_BPIX[4] = {0};				
+			unsigned int nHitsPerLayer_FPIX[4] = {0};	
+
+			auto clusterRange = std::equal_range(clusterTPmap.begin(), clusterTPmap.end(), std::make_pair(OmniClusterRef(), (*it)), compare);
+			if (clusterRange.first != clusterRange.second) 
+			{
+				for (auto ip = clusterRange.first; ip != clusterRange.second; ++ip) 
+				{
+					const OmniClusterRef &cluster = ip->first;
+					const TrackingParticleRef  &trackingPart = ip->second;
+
+					if (!(cluster.isPixel() && cluster.isValid())) 
+						continue;
+
+					if(verbose_)	
+						std::cout<< " TrackingPart pT: "<< trackingPart->p4() <<std::endl;
+
+					for (SiPixelRecHitCollection::const_iterator itr = rechits->begin(); itr != rechits->end(); itr++) 
+					{
+						SiPixelRecHitCollection::DetSet hits = *itr;
+						DetId detId = DetId(hits.detId());
+						SiPixelRecHitCollection::const_iterator recHitMatch = rechits->find(detId);
+						const SiPixelRecHitCollection::DetSet recHitRange = *recHitMatch;
+						for (SiPixelRecHitCollection::DetSet::const_iterator recHitIterator = recHitRange.begin();recHitIterator != recHitRange.end();++recHitIterator) 
+						{
+							const SiPixelRecHit* recHit = &(*recHitIterator);
+							int clusterSize = recHit->cluster()->size();
+
+							if(OmniClusterRef(recHit->cluster()) == cluster )
+							{
+								if (detId.det() == DetId::Tracker && detId.subdetId() == PixelSubdetector::PixelBarrel)
+								{
+									if(verbose_)
+										std::cout<< "ClusterSize : "<< clusterSize << " & detector layer : "<< tTopo->layer(detId) << std::endl;
+									if(tTopo->pxbLayer(detId)==1)
+										++nHitsPerLayer_BPIX[0];
+									if(tTopo->pxbLayer(detId)==2)
+										++nHitsPerLayer_BPIX[1];
+									if(tTopo->pxbLayer(detId)==3)
+										++nHitsPerLayer_BPIX[2];
+									if(tTopo->pxbLayer(detId)==4)
+										++nHitsPerLayer_BPIX[3];
+								}
+								if (detId.det() == DetId::Tracker && detId.subdetId() == PixelSubdetector::PixelEndcap)
+								{
+									if(verbose_)
+										std::cout<< "ClusterSize : "<< clusterSize << " & detector layer : "<< tTopo->pxfDisk(detId) << std::endl;
+									if(tTopo->pxfDisk(detId)==1)
+										++nHitsPerLayer_FPIX[0];
+									if(tTopo->pxfDisk(detId)==2)
+										++nHitsPerLayer_FPIX[1];
+									if(tTopo->pxfDisk(detId)==3)
+										++nHitsPerLayer_FPIX[2];
+									if(tTopo->pxfDisk(detId)==4)
+										++nHitsPerLayer_FPIX[3];										
+								}
+							}
+						}
+					}
+				}
+			}	
+			for(unsigned int i=0;i<4;++i)
+			{
+				if(nHitsPerLayer_BPIX[i]>0)
+					++nLayersBPIX;
+				if(nHitsPerLayer_FPIX[i]>0)
+					++nLayersFPIX;
+			}		
+			
+			if(verbose_)
+			{
+				std::cout<< " Matched RecHits Per TrackingParticle "<<std::endl;
+				std::cout<< " nLayers with hits BPIX : "<<nLayersBPIX << " and FPIX " << nLayersFPIX<< std::endl;
+				std::cout<< " Layer 1 hits BPIX : "<<nHitsPerLayer_BPIX[0] << " and FPIX " << nHitsPerLayer_FPIX[0] << std::endl;
+				std::cout<< " Layer 2 hits BPIX : "<<nHitsPerLayer_BPIX[1] << " and FPIX " << nHitsPerLayer_FPIX[1] << std::endl;
+				std::cout<< " Layer 3 hits BPIX : "<<nHitsPerLayer_BPIX[2] << " and FPIX " << nHitsPerLayer_FPIX[2] << std::endl;
+				std::cout<< " Layer 4 hits BPIX : "<<nHitsPerLayer_BPIX[3] << " and FPIX " << nHitsPerLayer_FPIX[3] << std::endl;
+			}
+
+			nRecoHitsLayer1_BPIX.push_back(nHitsPerLayer_BPIX[0]);
+			nRecoHitsLayer2_BPIX.push_back(nHitsPerLayer_BPIX[1]);
+			nRecoHitsLayer3_BPIX.push_back(nHitsPerLayer_BPIX[2]);
+			nRecoHitsLayer4_BPIX.push_back(nHitsPerLayer_BPIX[3]);
+			nRecoHitsLayer1_FPIX.push_back(nHitsPerLayer_FPIX[0]);
+			nRecoHitsLayer2_FPIX.push_back(nHitsPerLayer_FPIX[1]);
+			nRecoHitsLayer3_FPIX.push_back(nHitsPerLayer_FPIX[2]);
+			nRecoHitsLayer4_FPIX.push_back(nHitsPerLayer_FPIX[3]);
+
+			nRecoHitLayersBPIX.push_back(nLayersBPIX);
+			nRecoHitLayersFPIX.push_back(nLayersFPIX);
+
+		}
+	}
+	
 	//-------------- hltGsfElectrons -----------------------------------~
 	// DR matching with gen electron identified previously
 	// https://cmssdt.cern.ch/dxr/CMSSW/source/DataFormats/EgammaCandidates/interface/GsfElectron.h
@@ -532,6 +661,9 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 					// Check hits per Pixel layer
 					for(auto const& rhit: rhits)
 					{
+						if(!useGsfElectrons)
+							continue;
+
 						if(rhit.isValid() && rhit.det() != nullptr)
 						{
 							if(verbose_)
@@ -591,17 +723,20 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 						std::cout<< " Layer 4 hits BPIX : "<<nHitsPerLayer_BPIX[3] << " and FPIX " << nHitsPerLayer_FPIX[3] << std::endl;
 					}
 
-					nRecoHitsLayer1_BPIX.push_back(nHitsPerLayer_BPIX[0]);
-					nRecoHitsLayer2_BPIX.push_back(nHitsPerLayer_BPIX[1]);
-					nRecoHitsLayer3_BPIX.push_back(nHitsPerLayer_BPIX[2]);
-					nRecoHitsLayer4_BPIX.push_back(nHitsPerLayer_BPIX[3]);
-					nRecoHitsLayer1_FPIX.push_back(nHitsPerLayer_FPIX[0]);
-					nRecoHitsLayer2_FPIX.push_back(nHitsPerLayer_FPIX[1]);
-					nRecoHitsLayer3_FPIX.push_back(nHitsPerLayer_FPIX[2]);
-					nRecoHitsLayer4_FPIX.push_back(nHitsPerLayer_FPIX[3]);
+					if(useGsfElectrons)
+					{
+						nRecoHitsLayer1_BPIX.push_back(nHitsPerLayer_BPIX[0]);
+						nRecoHitsLayer2_BPIX.push_back(nHitsPerLayer_BPIX[1]);
+						nRecoHitsLayer3_BPIX.push_back(nHitsPerLayer_BPIX[2]);
+						nRecoHitsLayer4_BPIX.push_back(nHitsPerLayer_BPIX[3]);
+						nRecoHitsLayer1_FPIX.push_back(nHitsPerLayer_FPIX[0]);
+						nRecoHitsLayer2_FPIX.push_back(nHitsPerLayer_FPIX[1]);
+						nRecoHitsLayer3_FPIX.push_back(nHitsPerLayer_FPIX[2]);
+						nRecoHitsLayer4_FPIX.push_back(nHitsPerLayer_FPIX[3]);
 
-					nRecoHitLayersBPIX.push_back(nLayersBPIX);
-					nRecoHitLayersFPIX.push_back(nLayersFPIX);
+						nRecoHitLayersBPIX.push_back(nLayersBPIX);
+						nRecoHitLayersFPIX.push_back(nLayersFPIX);
+					}
 
 					recoEle_pt.push_back( eleItr->pt() );
 					recoEle_eta.push_back( eleItr->eta() );
