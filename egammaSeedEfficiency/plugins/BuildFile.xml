@@ -17,6 +17,7 @@
 <use name="RecoTracker/TrackProducer"/>
 <use name="SimDataFormats/Track"/>
 <use name="SimDataFormats/TrackingHit"/>
+<use name="SimTracker/TrackerHitAssociation"/>
 
 <use name="PhysicsTools/HepMCCandAlgos"/>
 <use name="CommonTools/UtilAlgos"/>
