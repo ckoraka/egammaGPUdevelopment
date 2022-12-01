@@ -80,7 +80,6 @@ def main(options, paths):
 
     f = r.TFile.Open(options.input)
     for event in f.Get("egammaReconstruction/tree"):
-        totalLayers = 0
         for electron in range(0,len(event.nSimHitLayersBPIX)):
             #if(event.isMatched[electron]):
             nSimHits.Fill(event.nSimHitLayersBPIX[electron])  
@@ -97,6 +96,7 @@ def main(options, paths):
             simEleEta.Fill(event.simEle_eta[electron]) 
             simElePhi.Fill(event.simEle_phi[electron]) 
 
+            totalLayers = 0
             if(event.nSimHitsLayer1_BPIX[electron]>0):
                 totalLayers = totalLayers+1
             if(event.nSimHitsLayer2_BPIX[electron]>0):
@@ -122,7 +122,6 @@ def main(options, paths):
             v2.SetPtEtaPhiE(event.simEle_pt[1],event.simEle_eta[1],event.simEle_phi[1],event.simEle_E[1])
             simZpeak.Fill((v1+v2).M())
 
-        totalLayers = 0
         for electron in range(0,len(event.nRecoHitLayersBPIX)):
             nRecoHits.Fill(event.nRecoHitLayersBPIX[electron])  
             nRecoHitsL1.Fill(event.nRecoHitsLayer1_BPIX[electron])  
@@ -146,6 +145,7 @@ def main(options, paths):
                 nSimvsRecoDiffBPIX.Fill(event.nSimHitLayersBPIX[electron]-event.nRecoHitLayersBPIX[electron])
                 nSimvsRecoDiffFPIX.Fill(event.nSimHitLayersFPIX[electron]-event.nRecoHitLayersFPIX[electron])
 
+            totalLayers = 0
             if(event.nRecoHitsLayer1_BPIX[electron]>0):
                 totalLayers = totalLayers+1
             if(event.nRecoHitsLayer2_BPIX[electron]>0):
@@ -201,8 +201,8 @@ def main(options, paths):
     nSimHitsTotal.SetLineWidth(2)
     nRecoHitsTotal.SetLineColor(r.kBlue)
     nRecoHitsTotal.SetLineWidth(2)
-    nRecoHitsTotal.Draw("HIST")
-    nSimHitsTotal.Draw("HIST same")
+    nSimHitsTotal.Draw("HIST")
+    nRecoHitsTotal.Draw("HIST same")
     paveCMS.Draw("same")
     l0.Draw("same")
     c.SaveAs('nHitsTotal.png')
@@ -265,8 +265,8 @@ def main(options, paths):
     l0 = r.TLegend(.7, .72, .89, .85)
     l0.AddEntry(nSimHitsFPIX,"Simulated","l")
     l0.AddEntry(nRecoHitsFPIX,"Reconstructed","l")
-    nRecoHitsFPIX.Draw("HIST")
-    nSimHitsFPIX.Draw("HIST same")
+    nSimHitsFPIX.Draw("HIST")
+    nRecoHitsFPIX.Draw("HIST same")
     paveCMS.Draw("same")
     l0.Draw("same")
     c.SaveAs('nHitsFPIX.png')
