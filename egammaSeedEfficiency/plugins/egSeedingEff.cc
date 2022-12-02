@@ -2,9 +2,12 @@
 #define EGSEEDINGEFF_H
 
 /**\class egSeedingEff egSeedingEff.cc egammaGPUdevelopment/egammaSeedEfficiency/plugins/egSeedingEff.cc
- Description: Look into the number of electron SimHits in the Pixel tracker 
+ Description: Macro that looks into the pixel tracker hit reconstruction efficiency of electrons. Goal is to
+	  		  understand why we loose efficiency when doubles are removed from the electron seeding.
  Implementation:
-     [Notes on implementation]
+    - Find the TrackingParticles that are electrons
+	- Find the simHits & RecHits associated with these tracking particles
+	- Look into the number & pattern of reconstructed pixel hits for each TP
 */
 
 // Standard C++ includes
@@ -91,7 +94,6 @@ class egSeedingEff : public edm::one::EDAnalyzer<edm::one::SharedResources, edm:
 		const edm::EDGetTokenT<ClusterTPAssociation>  clusterTPAssocToken_;
 		const edm::EDGetTokenT<SiPixelRecHitCollection>  pixelRecHitToken_;
 
-
 		TTree* tree;
 
 		std::vector<float>  recoEle_pt;
@@ -113,10 +115,12 @@ class egSeedingEff : public edm::one::EDAnalyzer<edm::one::SharedResources, edm:
 		std::vector<int>  nSimHitsLayer2_BPIX;
 		std::vector<int>  nSimHitsLayer3_BPIX;
 		std::vector<int>  nSimHitsLayer4_BPIX;
-		std::vector<int>  nSimHitsLayer1_FPIX;
-		std::vector<int>  nSimHitsLayer2_FPIX;
-		std::vector<int>  nSimHitsLayer3_FPIX;
-		std::vector<int>  nSimHitsLayer4_FPIX;
+		std::vector<int>  nSimHitsLayer1_FPIX_pos;
+		std::vector<int>  nSimHitsLayer2_FPIX_pos;
+		std::vector<int>  nSimHitsLayer3_FPIX_pos;
+		std::vector<int>  nSimHitsLayer1_FPIX_neg;
+		std::vector<int>  nSimHitsLayer2_FPIX_neg;
+		std::vector<int>  nSimHitsLayer3_FPIX_neg;
 
 		std::vector<int>  nRecoHitLayersBPIX;
 		std::vector<int>  nRecoHitLayersFPIX;
@@ -124,15 +128,42 @@ class egSeedingEff : public edm::one::EDAnalyzer<edm::one::SharedResources, edm:
 		std::vector<int>  nRecoHitsLayer2_BPIX;
 		std::vector<int>  nRecoHitsLayer3_BPIX;
 		std::vector<int>  nRecoHitsLayer4_BPIX;
-		std::vector<int>  nRecoHitsLayer1_FPIX;
-		std::vector<int>  nRecoHitsLayer2_FPIX;
-		std::vector<int>  nRecoHitsLayer3_FPIX;
-		std::vector<int>  nRecoHitsLayer4_FPIX;
+		std::vector<int>  nRecoHitsLayer1_FPIX_pos;
+		std::vector<int>  nRecoHitsLayer2_FPIX_pos;
+		std::vector<int>  nRecoHitsLayer3_FPIX_pos;
+		std::vector<int>  nRecoHitsLayer1_FPIX_neg;
+		std::vector<int>  nRecoHitsLayer2_FPIX_neg;
+		std::vector<int>  nRecoHitsLayer3_FPIX_neg;
+
+		// Hits per module split into BPIX layers and FPIX layers (in -z & +z disks)
+		// Vectors (differebt from all other variables)
+		std::vector<std::vector<int>>  nSimHitsPerModuleLayer1_BPIX;
+		std::vector<std::vector<int>>  nSimHitsPerModuleLayer2_BPIX;
+		std::vector<std::vector<int>>  nSimHitsPerModuleLayer3_BPIX;
+		std::vector<std::vector<int>>  nSimHitsPerModuleLayer4_BPIX;
+		std::vector<std::vector<int>>  nSimHitsPerModuleLayer1_FPIX_pos;
+		std::vector<std::vector<int>>  nSimHitsPerModuleLayer2_FPIX_pos;
+		std::vector<std::vector<int>>  nSimHitsPerModuleLayer3_FPIX_pos;
+		std::vector<std::vector<int>>  nSimHitsPerModuleLayer1_FPIX_neg;
+		std::vector<std::vector<int>>  nSimHitsPerModuleLayer2_FPIX_neg;
+		std::vector<std::vector<int>>  nSimHitsPerModuleLayer3_FPIX_neg;
+
+		std::vector<std::vector<int>>  nRecoHitsPerModuleLayer1_BPIX;
+		std::vector<std::vector<int>>  nRecoHitsPerModuleLayer2_BPIX;
+		std::vector<std::vector<int>>  nRecoHitsPerModuleLayer3_BPIX;
+		std::vector<std::vector<int>>  nRecoHitsPerModuleLayer4_BPIX;
+		std::vector<std::vector<int>>  nRecoHitsPerModuleLayer1_FPIX_pos;
+		std::vector<std::vector<int>>  nRecoHitsPerModuleLayer2_FPIX_pos;
+		std::vector<std::vector<int>>  nRecoHitsPerModuleLayer3_FPIX_pos;
+		std::vector<std::vector<int>>  nRecoHitsPerModuleLayer1_FPIX_neg;
+		std::vector<std::vector<int>>  nRecoHitsPerModuleLayer2_FPIX_neg;
+		std::vector<std::vector<int>>  nRecoHitsPerModuleLayer3_FPIX_neg;
 
 		int run_, lumi_, event_;
 		bool verbose_;
 		double DeltaR_;
 		const bool useGsfElectrons = false;
+		bool isBarrel_;
 };
 
 //Constructor
@@ -146,7 +177,8 @@ egSeedingEff::egSeedingEff(const edm::ParameterSet& iConfig):
 							clusterTPAssocToken_(consumes<ClusterTPAssociation>(iConfig.getParameter<edm::InputTag>("cluster2TPSrc"))),
 							pixelRecHitToken_(consumes<SiPixelRecHitCollection>(iConfig.getParameter<edm::InputTag>("pixelRecHits"))),							
 							verbose_(iConfig.getParameter<bool>("verbose")),
-							DeltaR_(iConfig.getParameter<double>("deltaR"))
+							DeltaR_(iConfig.getParameter<double>("deltaR")),
+							isBarrel_(iConfig.getParameter<bool>("isBarrel"))
 {
 	initialize();
 	usesResource("TFileService");	
@@ -189,10 +221,23 @@ void egSeedingEff::initialize() {
 	this -> nSimHitsLayer2_BPIX.clear();
 	this -> nSimHitsLayer3_BPIX.clear();
 	this -> nSimHitsLayer4_BPIX.clear();
-	this -> nSimHitsLayer1_FPIX.clear();
-	this -> nSimHitsLayer2_FPIX.clear();
-	this -> nSimHitsLayer3_FPIX.clear();
-	this -> nSimHitsLayer4_FPIX.clear();
+	this -> nSimHitsLayer1_FPIX_pos.clear();
+	this -> nSimHitsLayer2_FPIX_pos.clear();
+	this -> nSimHitsLayer3_FPIX_pos.clear();
+	this -> nSimHitsLayer1_FPIX_neg.clear();
+	this -> nSimHitsLayer2_FPIX_neg.clear();
+	this -> nSimHitsLayer3_FPIX_neg.clear();
+
+	this -> nSimHitsPerModuleLayer1_BPIX.clear();
+	this -> nSimHitsPerModuleLayer2_BPIX.clear();
+	this -> nSimHitsPerModuleLayer3_BPIX.clear();
+	this -> nSimHitsPerModuleLayer4_BPIX.clear();
+	this -> nSimHitsPerModuleLayer1_FPIX_pos.clear();
+	this -> nSimHitsPerModuleLayer2_FPIX_pos.clear();
+	this -> nSimHitsPerModuleLayer3_FPIX_pos.clear();
+	this -> nSimHitsPerModuleLayer1_FPIX_neg.clear();
+	this -> nSimHitsPerModuleLayer2_FPIX_neg.clear();
+	this -> nSimHitsPerModuleLayer3_FPIX_neg.clear();
 
 	this -> nRecoHitLayersBPIX.clear();
 	this -> nRecoHitLayersFPIX.clear();
@@ -200,10 +245,24 @@ void egSeedingEff::initialize() {
 	this -> nRecoHitsLayer2_BPIX.clear();
 	this -> nRecoHitsLayer3_BPIX.clear();
 	this -> nRecoHitsLayer4_BPIX.clear();
-	this -> nRecoHitsLayer1_FPIX.clear();
-	this -> nRecoHitsLayer2_FPIX.clear();
-	this -> nRecoHitsLayer3_FPIX.clear();
-	this -> nRecoHitsLayer4_FPIX.clear();
+	this -> nRecoHitsLayer1_FPIX_pos.clear();
+	this -> nRecoHitsLayer2_FPIX_pos.clear();
+	this -> nRecoHitsLayer3_FPIX_pos.clear();
+	this -> nRecoHitsLayer1_FPIX_neg.clear();
+	this -> nRecoHitsLayer2_FPIX_neg.clear();
+	this -> nRecoHitsLayer3_FPIX_neg.clear();
+
+	this -> nRecoHitsPerModuleLayer1_BPIX.clear();
+	this -> nRecoHitsPerModuleLayer2_BPIX.clear();
+	this -> nRecoHitsPerModuleLayer3_BPIX.clear();
+	this -> nRecoHitsPerModuleLayer4_BPIX.clear();
+	this -> nRecoHitsPerModuleLayer1_FPIX_pos.clear();
+	this -> nRecoHitsPerModuleLayer2_FPIX_pos.clear();
+	this -> nRecoHitsPerModuleLayer3_FPIX_pos.clear();
+	this -> nRecoHitsPerModuleLayer1_FPIX_neg.clear();
+	this -> nRecoHitsPerModuleLayer2_FPIX_neg.clear();
+	this -> nRecoHitsPerModuleLayer3_FPIX_neg.clear();
+
 }
 
 void egSeedingEff::beginJob() 
@@ -227,32 +286,58 @@ void egSeedingEff::beginJob()
 	tree->Branch("dr_RecoSim","std::vector<float>",&dr_RecoSim);
 	tree->Branch("isMatched","std::vector<int>",&isMatched);
 
-
 	tree->Branch("nSimHitLayersBPIX", "std::vector<int>", &nSimHitLayersBPIX  );
 	tree->Branch("nSimHitLayersFPIX", "std::vector<int>", &nSimHitLayersFPIX  );
 	tree->Branch("nSimHitsLayer1_BPIX", "std::vector<int>", &nSimHitsLayer1_BPIX );
 	tree->Branch("nSimHitsLayer2_BPIX", "std::vector<int>", &nSimHitsLayer2_BPIX );
 	tree->Branch("nSimHitsLayer3_BPIX", "std::vector<int>", &nSimHitsLayer3_BPIX );
 	tree->Branch("nSimHitsLayer4_BPIX", "std::vector<int>", &nSimHitsLayer4_BPIX );
-	tree->Branch("nSimHitsLayer1_FPIX", "std::vector<int>", &nSimHitsLayer1_FPIX );
-	tree->Branch("nSimHitsLayer2_FPIX", "std::vector<int>", &nSimHitsLayer2_FPIX );
-	tree->Branch("nSimHitsLayer3_FPIX", "std::vector<int>", &nSimHitsLayer3_FPIX );
-	tree->Branch("nSimHitsLayer4_FPIX", "std::vector<int>", &nSimHitsLayer4_FPIX );
+	tree->Branch("nSimHitsLayer1_FPIX_pos", "std::vector<int>", &nSimHitsLayer1_FPIX_pos );
+	tree->Branch("nSimHitsLayer2_FPIX_pos", "std::vector<int>", &nSimHitsLayer2_FPIX_pos );
+	tree->Branch("nSimHitsLayer3_FPIX_pos", "std::vector<int>", &nSimHitsLayer3_FPIX_pos );
+	tree->Branch("nSimHitsLayer1_FPIX_neg", "std::vector<int>", &nSimHitsLayer1_FPIX_neg );
+	tree->Branch("nSimHitsLayer2_FPIX_neg", "std::vector<int>", &nSimHitsLayer2_FPIX_neg );
+	tree->Branch("nSimHitsLayer3_FPIX_neg", "std::vector<int>", &nSimHitsLayer3_FPIX_neg );
 
-	tree->Branch("recoEle_pt" , "std::vector<float>", &recoEle_pt );
-	tree->Branch("recoEle_eta", "std::vector<float>", &recoEle_eta );
-	tree->Branch("recoEle_phi", "std::vector<float>", &recoEle_phi );
-	tree->Branch("recoEle_E", "std::vector<float>", &recoEle_E );
+	tree->Branch("nSimHitsPerModuleLayer1_BPIX", "std::vector<std::vector<int>>", &nSimHitsPerModuleLayer1_BPIX );
+	tree->Branch("nSimHitsPerModuleLayer2_BPIX", "std::vector<std::vector<int>>", &nSimHitsPerModuleLayer2_BPIX );
+	tree->Branch("nSimHitsPerModuleLayer3_BPIX", "std::vector<std::vector<int>>", &nSimHitsPerModuleLayer3_BPIX );
+	tree->Branch("nSimHitsPerModuleLayer4_BPIX", "std::vector<std::vector<int>>", &nSimHitsPerModuleLayer4_BPIX );
+	tree->Branch("nSimHitsPerModuleLayer1_FPIX_pos", "std::vector<std::vector<int>>", &nSimHitsPerModuleLayer1_FPIX_pos );
+	tree->Branch("nSimHitsPerModuleLayer2_FPIX_pos", "std::vector<std::vector<int>>", &nSimHitsPerModuleLayer2_FPIX_pos );
+	tree->Branch("nSimHitsPerModuleLayer3_FPIX_pos", "std::vector<std::vector<int>>", &nSimHitsPerModuleLayer3_FPIX_pos );
+	tree->Branch("nSimHitsPerModuleLayer1_FPIX_neg", "std::vector<std::vector<int>>", &nSimHitsPerModuleLayer1_FPIX_neg );
+	tree->Branch("nSimHitsPerModuleLayer2_FPIX_neg", "std::vector<std::vector<int>>", &nSimHitsPerModuleLayer2_FPIX_neg );
+	tree->Branch("nSimHitsPerModuleLayer3_FPIX_neg", "std::vector<std::vector<int>>", &nSimHitsPerModuleLayer3_FPIX_neg );
+
 	tree->Branch("nRecoHitLayersBPIX", "std::vector<int>", &nRecoHitLayersBPIX );
 	tree->Branch("nRecoHitLayersFPIX", "std::vector<int>", &nRecoHitLayersFPIX );
 	tree->Branch("nRecoHitsLayer1_BPIX", "std::vector<int>", &nRecoHitsLayer1_BPIX );
 	tree->Branch("nRecoHitsLayer2_BPIX", "std::vector<int>", &nRecoHitsLayer2_BPIX );
 	tree->Branch("nRecoHitsLayer3_BPIX", "std::vector<int>", &nRecoHitsLayer3_BPIX );
 	tree->Branch("nRecoHitsLayer4_BPIX", "std::vector<int>", &nRecoHitsLayer4_BPIX );
-	tree->Branch("nRecoHitsLayer1_FPIX", "std::vector<int>", &nRecoHitsLayer1_FPIX );
-	tree->Branch("nRecoHitsLayer2_FPIX", "std::vector<int>", &nRecoHitsLayer2_FPIX );
-	tree->Branch("nRecoHitsLayer3_FPIX", "std::vector<int>", &nRecoHitsLayer3_FPIX );
-	tree->Branch("nRecoHitsLayer4_FPIX", "std::vector<int>", &nRecoHitsLayer4_FPIX );
+	tree->Branch("nRecoHitsLayer1_FPIX_pos", "std::vector<int>", &nRecoHitsLayer1_FPIX_pos );
+	tree->Branch("nRecoHitsLayer2_FPIX_pos", "std::vector<int>", &nRecoHitsLayer2_FPIX_pos );
+	tree->Branch("nRecoHitsLayer3_FPIX_pos", "std::vector<int>", &nRecoHitsLayer3_FPIX_pos );
+	tree->Branch("nRecoHitsLayer1_FPIX_neg", "std::vector<int>", &nRecoHitsLayer1_FPIX_neg );
+	tree->Branch("nRecoHitsLayer2_FPIX_neg", "std::vector<int>", &nRecoHitsLayer2_FPIX_neg );
+	tree->Branch("nRecoHitsLayer3_FPIX_neg", "std::vector<int>", &nRecoHitsLayer3_FPIX_neg );
+
+	tree->Branch("nRecoHitsPerModuleLayer1_BPIX", "std::vector<std::vector<int>>", &nRecoHitsPerModuleLayer1_BPIX );
+	tree->Branch("nRecoHitsPerModuleLayer2_BPIX", "std::vector<std::vector<int>>", &nRecoHitsPerModuleLayer2_BPIX );
+	tree->Branch("nRecoHitsPerModuleLayer3_BPIX", "std::vector<std::vector<int>>", &nRecoHitsPerModuleLayer3_BPIX );
+	tree->Branch("nRecoHitsPerModuleLayer4_BPIX", "std::vector<std::vector<int>>", &nRecoHitsPerModuleLayer4_BPIX );
+	tree->Branch("nRecoHitsPerModuleLayer1_FPIX_pos", "std::vector<std::vector<int>>", &nRecoHitsPerModuleLayer1_FPIX_pos );
+	tree->Branch("nRecoHitsPerModuleLayer2_FPIX_pos", "std::vector<std::vector<int>>", &nRecoHitsPerModuleLayer2_FPIX_pos );
+	tree->Branch("nRecoHitsPerModuleLayer3_FPIX_pos", "std::vector<std::vector<int>>", &nRecoHitsPerModuleLayer3_FPIX_pos );
+	tree->Branch("nRecoHitsPerModuleLayer1_FPIX_neg", "std::vector<std::vector<int>>", &nRecoHitsPerModuleLayer1_FPIX_neg );
+	tree->Branch("nRecoHitsPerModuleLayer2_FPIX_neg", "std::vector<std::vector<int>>", &nRecoHitsPerModuleLayer2_FPIX_neg );
+	tree->Branch("nRecoHitsPerModuleLayer3_FPIX_neg", "std::vector<std::vector<int>>", &nRecoHitsPerModuleLayer3_FPIX_neg );
+
+	tree->Branch("recoEle_pt" , "std::vector<float>", &recoEle_pt );
+	tree->Branch("recoEle_eta", "std::vector<float>", &recoEle_eta );
+	tree->Branch("recoEle_phi", "std::vector<float>", &recoEle_phi );
+	tree->Branch("recoEle_E", "std::vector<float>", &recoEle_E );
 
 	return ;
 }
@@ -351,6 +436,14 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 		{
 			auto genElec = genElectrons.at(genPartCounter);
 
+			bool pass = false;
+			if(isBarrel_ && (abs(tp.p4().eta()) < 1.45))
+				pass = true;
+			if(!isBarrel_ && (abs(tp.p4().eta()) > 1.55))
+				pass = true;
+			if(!pass)
+				continue;
+				
 			if(dr(genElec.eta(),tp.p4().eta(),genElec.phi(),tp.p4().phi()) < 0.01)
 			{
 				eleTrackIds.push_back(tp.g4Tracks().at(0).trackId());
@@ -405,7 +498,8 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 		unsigned int nLayersFPIX = 0;
 		unsigned int nLayersBPIX = 0;	
 		unsigned int nHitsPerLayer_BPIX[4] = {0};				
-		unsigned int nHitsPerLayer_FPIX[4] = {0};
+		unsigned int nHitsPerLayer_FPIX[6] = {0};
+		std::vector<int> pxbL1(0),pxbL2(0),pxbL3(0),pxbL4(0),pxfL1p(0),pxfL2p(0),pxfL3p(0),pxfL1n(0),pxfL2n(0),pxfL3n(0);
 
 		for(size_t TrackIdsCounter = 0; TrackIdsCounter < TrackIds.size(); ++TrackIdsCounter)
 		{
@@ -428,8 +522,6 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 					if(!(simHit.eventId().bunchCrossing() == 0 && simHit.eventId().event() == 0))
 						continue;
 
-					//if(abs(simHit.particleType())!=11 || simHit.processType()==0)
-					//	continue;
 					if(abs(simHit.particleType())!=11)
 						continue;
 
@@ -444,30 +536,58 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 					}
 
 					DetId theDetUnitId = simHit.detUnitId();					
-					if(theDetUnitId.subdetId() == PixelSubdetector::PixelBarrel){
+					if(theDetUnitId.subdetId() == PixelSubdetector::PixelBarrel)
+					{
 						if(verbose_)
-							std::cout << "Barrel Layer: " << tTopo->pxbLayer(theDetUnitId) << std::endl;
-						if(tTopo->pxbLayer(theDetUnitId)==1)
+							std::cout<<" Barrel Layer: "<< tTopo->pxbLayer(theDetUnitId) << "  and module " << tTopo->pxbModule(theDetUnitId) <<std::endl;
+
+						if(tTopo->pxbLayer(theDetUnitId)==1){
 							++nHitsPerLayer_BPIX[0];
-						if(tTopo->pxbLayer(theDetUnitId)==2)
+							pxbL1.push_back(tTopo->pxbModule(theDetUnitId));
+						}							
+						if(tTopo->pxbLayer(theDetUnitId)==2){
 							++nHitsPerLayer_BPIX[1];
-						if(tTopo->pxbLayer(theDetUnitId)==3)
+							pxbL2.push_back(tTopo->pxbModule(theDetUnitId));
+						}	
+						if(tTopo->pxbLayer(theDetUnitId)==3){
 							++nHitsPerLayer_BPIX[2];
-						if(tTopo->pxbLayer(theDetUnitId)==4)
+							pxbL3.push_back(tTopo->pxbModule(theDetUnitId));
+						}	
+						if(tTopo->pxbLayer(theDetUnitId)==4){
 							++nHitsPerLayer_BPIX[3];
+							pxbL4.push_back(tTopo->pxbModule(theDetUnitId));
+						}
 					}
 
-					if(theDetUnitId.subdetId() == PixelSubdetector::PixelEndcap){
+					if(theDetUnitId.subdetId() == PixelSubdetector::PixelEndcap)
+					{
 						if(verbose_)
-							std::cout << "Endcap Layer: " << tTopo->pxfDisk(theDetUnitId) << std::endl;
-						if(tTopo->pxfDisk(theDetUnitId)==1)
+							std::cout<< "Endcap Layer : "<< tTopo->pxfDisk(theDetUnitId) << " module : " << tTopo->pxfModule(theDetUnitId) << " and side : " << tTopo->pxfSide(theDetUnitId) << std::endl; //side=1 for -z, 2 for +z
+
+						if(tTopo->pxfDisk(theDetUnitId)==1 && tTopo->pxfSide(theDetUnitId)==2){
 							++nHitsPerLayer_FPIX[0];
-						if(tTopo->pxfDisk(theDetUnitId)==2)
+							pxfL1p.push_back(tTopo->pxfModule(theDetUnitId));
+						}
+						if(tTopo->pxfDisk(theDetUnitId)==1 && tTopo->pxfSide(theDetUnitId)==1){
+							++nHitsPerLayer_FPIX[3];							
+							pxfL1n.push_back(tTopo->pxfModule(theDetUnitId));
+						}
+						if(tTopo->pxfDisk(theDetUnitId)==2 && tTopo->pxfSide(theDetUnitId)==2){
 							++nHitsPerLayer_FPIX[1];
-						if(tTopo->pxfDisk(theDetUnitId)==3)
+							pxfL2p.push_back(tTopo->pxfModule(theDetUnitId));
+						}
+						if(tTopo->pxfDisk(theDetUnitId)==2 && tTopo->pxfSide(theDetUnitId)==1){
+							++nHitsPerLayer_FPIX[4];	
+							pxfL2n.push_back(tTopo->pxfModule(theDetUnitId));
+						}
+						if(tTopo->pxfDisk(theDetUnitId)==3 && tTopo->pxfSide(theDetUnitId)==2){
 							++nHitsPerLayer_FPIX[2];
-						if(tTopo->pxfDisk(theDetUnitId)==4)
-							++nHitsPerLayer_FPIX[3];
+							pxfL3p.push_back(tTopo->pxfModule(theDetUnitId));
+						}
+						if(tTopo->pxfDisk(theDetUnitId)==3 && tTopo->pxfSide(theDetUnitId)==1){
+							++nHitsPerLayer_FPIX[5];
+							pxfL3n.push_back(tTopo->pxfModule(theDetUnitId));
+						}
 					}
 				}
 			}
@@ -477,18 +597,21 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 		{
 			if(nHitsPerLayer_BPIX[i]>0)
 				++nLayersBPIX;
-			if(nHitsPerLayer_FPIX[i]>0)
-				++nLayersFPIX;
 		}		
+		for(unsigned int i=0;i<3;++i)
+		{
+			if(nHitsPerLayer_FPIX[i]>0 || nHitsPerLayer_FPIX[i+3]>0)
+				++nLayersFPIX;
+		}
 
 		if(verbose_)
 		{
 			std::cout<< " Sim electron "<<std::endl;
-			std::cout<< " nLayers with hits BPIX : "<<nLayersBPIX << " and FPIX " << nLayersFPIX<< std::endl;
-			std::cout<< " Layer 1 hits BPIX : "<<nHitsPerLayer_BPIX[0] << " and FPIX " << nHitsPerLayer_FPIX[0] << std::endl;
-			std::cout<< " Layer 2 hits BPIX : "<<nHitsPerLayer_BPIX[1] << " and FPIX " << nHitsPerLayer_FPIX[1] << std::endl;
-			std::cout<< " Layer 3 hits BPIX : "<<nHitsPerLayer_BPIX[2] << " and FPIX " << nHitsPerLayer_FPIX[2] << std::endl;
-			std::cout<< " Layer 4 hits BPIX : "<<nHitsPerLayer_BPIX[3] << " and FPIX " << nHitsPerLayer_FPIX[3] << std::endl;
+			std::cout<< " nLayers with hits BPIX : "<<nLayersBPIX << " and FPIX " << nLayersFPIX << std::endl;
+			std::cout<< " Layer 1 hits BPIX : "<<nHitsPerLayer_BPIX[0] << " and FPIX pos " << nHitsPerLayer_FPIX[0] << " and FPIX neg "<< nHitsPerLayer_FPIX[3]<< std::endl;
+			std::cout<< " Layer 2 hits BPIX : "<<nHitsPerLayer_BPIX[1] << " and FPIX pos " << nHitsPerLayer_FPIX[1] << " and FPIX neg "<< nHitsPerLayer_FPIX[4]<< std::endl;
+			std::cout<< " Layer 3 hits BPIX : "<<nHitsPerLayer_BPIX[2] << " and FPIX pos " << nHitsPerLayer_FPIX[2] << " and FPIX neg "<< nHitsPerLayer_FPIX[5]<< std::endl;
+			std::cout<< " Layer 4 hits BPIX : "<<nHitsPerLayer_BPIX[3] << std::endl;
 		}
 
 		nSimHitLayersBPIX.push_back(nLayersBPIX);
@@ -497,10 +620,22 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 		nSimHitsLayer2_BPIX.push_back(nHitsPerLayer_BPIX[1]);
 		nSimHitsLayer3_BPIX.push_back(nHitsPerLayer_BPIX[2]);
 		nSimHitsLayer4_BPIX.push_back(nHitsPerLayer_BPIX[3]);
-		nSimHitsLayer1_FPIX.push_back(nHitsPerLayer_FPIX[0]);
-		nSimHitsLayer2_FPIX.push_back(nHitsPerLayer_FPIX[1]);
-		nSimHitsLayer3_FPIX.push_back(nHitsPerLayer_FPIX[2]);
-		nSimHitsLayer4_FPIX.push_back(nHitsPerLayer_FPIX[3]);
+		nSimHitsLayer1_FPIX_pos.push_back(nHitsPerLayer_FPIX[0]);
+		nSimHitsLayer2_FPIX_pos.push_back(nHitsPerLayer_FPIX[1]);
+		nSimHitsLayer3_FPIX_pos.push_back(nHitsPerLayer_FPIX[2]);
+		nSimHitsLayer1_FPIX_neg.push_back(nHitsPerLayer_FPIX[3]);
+		nSimHitsLayer2_FPIX_neg.push_back(nHitsPerLayer_FPIX[4]);
+		nSimHitsLayer3_FPIX_neg.push_back(nHitsPerLayer_FPIX[5]);
+		nSimHitsPerModuleLayer1_BPIX.push_back(pxbL1);
+		nSimHitsPerModuleLayer2_BPIX.push_back(pxbL2);
+		nSimHitsPerModuleLayer3_BPIX.push_back(pxbL3);
+		nSimHitsPerModuleLayer4_BPIX.push_back(pxbL4);
+		nSimHitsPerModuleLayer1_FPIX_pos.push_back(pxfL1p);
+		nSimHitsPerModuleLayer2_FPIX_pos.push_back(pxfL2p);
+		nSimHitsPerModuleLayer3_FPIX_pos.push_back(pxfL3p);
+		nSimHitsPerModuleLayer1_FPIX_neg.push_back(pxfL1n);
+		nSimHitsPerModuleLayer2_FPIX_neg.push_back(pxfL2n);
+		nSimHitsPerModuleLayer3_FPIX_neg.push_back(pxfL3n);
 	}
 
 	// ---------------- TP to Cluster Association ------------------------------------------------------
@@ -532,7 +667,8 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 			unsigned int nLayersFPIX = 0;
 			unsigned int nLayersBPIX = 0;
 			unsigned int nHitsPerLayer_BPIX[4] = {0};				
-			unsigned int nHitsPerLayer_FPIX[4] = {0};	
+			unsigned int nHitsPerLayer_FPIX[6] = {0};	
+			std::vector<int> pxbL1(0),pxbL2(0),pxbL3(0),pxbL4(0),pxfL1p(0),pxfL2p(0),pxfL3p(0),pxfL1n(0),pxfL2n(0),pxfL3n(0);
 
 			auto clusterRange = std::equal_range(clusterTPmap.begin(), clusterTPmap.end(), std::make_pair(OmniClusterRef(), (*it)), compare);
 			if (clusterRange.first != clusterRange.second) 
@@ -565,62 +701,104 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 								{
 									if(verbose_)
 										std::cout<< "ClusterSize : "<< clusterSize << " & detector layer : "<< tTopo->layer(detId) << std::endl;
-									if(tTopo->pxbLayer(detId)==1)
+									if(tTopo->pxbLayer(detId)==1){
 										++nHitsPerLayer_BPIX[0];
-									if(tTopo->pxbLayer(detId)==2)
+										pxbL1.push_back(tTopo->pxbModule(detId));
+									}							
+									if(tTopo->pxbLayer(detId)==2){
 										++nHitsPerLayer_BPIX[1];
-									if(tTopo->pxbLayer(detId)==3)
+										pxbL2.push_back(tTopo->pxbModule(detId));
+									}	
+									if(tTopo->pxbLayer(detId)==3){
 										++nHitsPerLayer_BPIX[2];
-									if(tTopo->pxbLayer(detId)==4)
+										pxbL3.push_back(tTopo->pxbModule(detId));
+									}	
+									if(tTopo->pxbLayer(detId)==4){
 										++nHitsPerLayer_BPIX[3];
+										pxbL4.push_back(tTopo->pxbModule(detId));
+									}
 								}
 								if (detId.det() == DetId::Tracker && detId.subdetId() == PixelSubdetector::PixelEndcap)
 								{
 									if(verbose_)
-										std::cout<< "ClusterSize : "<< clusterSize << " & detector layer : "<< tTopo->pxfDisk(detId) << std::endl;
-									if(tTopo->pxfDisk(detId)==1)
+										std::cout<< "ClusterSize : "<< clusterSize << " and Endcap Layer : "<< tTopo->pxfDisk(detId) << " module : " << tTopo->pxfModule(detId) << " and side : " << tTopo->pxfSide(detId) << std::endl; //side=1 for -z, 2 for +z
+
+									if(tTopo->pxfDisk(detId)==1 && tTopo->pxfSide(detId)==2){
 										++nHitsPerLayer_FPIX[0];
-									if(tTopo->pxfDisk(detId)==2)
+										pxfL1p.push_back(tTopo->pxfModule(detId));
+									}
+									if(tTopo->pxfDisk(detId)==1 && tTopo->pxfSide(detId)==1){
+										++nHitsPerLayer_FPIX[3];							
+										pxfL1n.push_back(tTopo->pxfModule(detId));
+									}
+									if(tTopo->pxfDisk(detId)==2 && tTopo->pxfSide(detId)==2){
 										++nHitsPerLayer_FPIX[1];
-									if(tTopo->pxfDisk(detId)==3)
+										pxfL2p.push_back(tTopo->pxfModule(detId));
+									}
+									if(tTopo->pxfDisk(detId)==2 && tTopo->pxfSide(detId)==1){
+										++nHitsPerLayer_FPIX[4];	
+										pxfL2n.push_back(tTopo->pxfModule(detId));
+									}
+									if(tTopo->pxfDisk(detId)==3 && tTopo->pxfSide(detId)==2){
 										++nHitsPerLayer_FPIX[2];
-									if(tTopo->pxfDisk(detId)==4)
-										++nHitsPerLayer_FPIX[3];										
+										pxfL3p.push_back(tTopo->pxfModule(detId));
+									}
+									if(tTopo->pxfDisk(detId)==3 && tTopo->pxfSide(detId)==1){
+										++nHitsPerLayer_FPIX[5];
+										pxfL3n.push_back(tTopo->pxfModule(detId));
+									}
 								}
 							}
 						}
 					}
 				}
 			}	
+	
 			for(unsigned int i=0;i<4;++i)
 			{
 				if(nHitsPerLayer_BPIX[i]>0)
 					++nLayersBPIX;
-				if(nHitsPerLayer_FPIX[i]>0)
-					++nLayersFPIX;
 			}		
-			
+			for(unsigned int i=0;i<3;++i)
+			{
+				if(nHitsPerLayer_FPIX[i]>0 || nHitsPerLayer_FPIX[i+3]>0)
+					++nLayersFPIX;
+			}
+
 			if(verbose_)
 			{
 				std::cout<< " Matched RecHits Per TrackingParticle "<<std::endl;
-				std::cout<< " nLayers with hits BPIX : "<<nLayersBPIX << " and FPIX " << nLayersFPIX<< std::endl;
-				std::cout<< " Layer 1 hits BPIX : "<<nHitsPerLayer_BPIX[0] << " and FPIX " << nHitsPerLayer_FPIX[0] << std::endl;
-				std::cout<< " Layer 2 hits BPIX : "<<nHitsPerLayer_BPIX[1] << " and FPIX " << nHitsPerLayer_FPIX[1] << std::endl;
-				std::cout<< " Layer 3 hits BPIX : "<<nHitsPerLayer_BPIX[2] << " and FPIX " << nHitsPerLayer_FPIX[2] << std::endl;
-				std::cout<< " Layer 4 hits BPIX : "<<nHitsPerLayer_BPIX[3] << " and FPIX " << nHitsPerLayer_FPIX[3] << std::endl;
+				std::cout<< " nLayers with hits BPIX : "<<nLayersBPIX << " and FPIX " << nLayersFPIX << std::endl;
+				std::cout<< " Layer 1 hits BPIX : "<<nHitsPerLayer_BPIX[0] << " and FPIX pos " << nHitsPerLayer_FPIX[0] << " and FPIX neg "<< nHitsPerLayer_FPIX[3]<< std::endl;
+				std::cout<< " Layer 2 hits BPIX : "<<nHitsPerLayer_BPIX[1] << " and FPIX pos " << nHitsPerLayer_FPIX[1] << " and FPIX neg "<< nHitsPerLayer_FPIX[4]<< std::endl;
+				std::cout<< " Layer 3 hits BPIX : "<<nHitsPerLayer_BPIX[2] << " and FPIX pos " << nHitsPerLayer_FPIX[2] << " and FPIX neg "<< nHitsPerLayer_FPIX[5]<< std::endl;
+				std::cout<< " Layer 4 hits BPIX : "<<nHitsPerLayer_BPIX[3] << std::endl;
 			}
 
 			nRecoHitsLayer1_BPIX.push_back(nHitsPerLayer_BPIX[0]);
 			nRecoHitsLayer2_BPIX.push_back(nHitsPerLayer_BPIX[1]);
 			nRecoHitsLayer3_BPIX.push_back(nHitsPerLayer_BPIX[2]);
 			nRecoHitsLayer4_BPIX.push_back(nHitsPerLayer_BPIX[3]);
-			nRecoHitsLayer1_FPIX.push_back(nHitsPerLayer_FPIX[0]);
-			nRecoHitsLayer2_FPIX.push_back(nHitsPerLayer_FPIX[1]);
-			nRecoHitsLayer3_FPIX.push_back(nHitsPerLayer_FPIX[2]);
-			nRecoHitsLayer4_FPIX.push_back(nHitsPerLayer_FPIX[3]);
+			nRecoHitsLayer1_FPIX_pos.push_back(nHitsPerLayer_FPIX[0]);
+			nRecoHitsLayer2_FPIX_pos.push_back(nHitsPerLayer_FPIX[1]);
+			nRecoHitsLayer3_FPIX_pos.push_back(nHitsPerLayer_FPIX[2]);
+			nRecoHitsLayer1_FPIX_neg.push_back(nHitsPerLayer_FPIX[3]);
+			nRecoHitsLayer2_FPIX_neg.push_back(nHitsPerLayer_FPIX[4]);
+			nRecoHitsLayer3_FPIX_neg.push_back(nHitsPerLayer_FPIX[5]);
 
 			nRecoHitLayersBPIX.push_back(nLayersBPIX);
 			nRecoHitLayersFPIX.push_back(nLayersFPIX);
+
+			nRecoHitsPerModuleLayer1_BPIX.push_back(pxbL1);
+			nRecoHitsPerModuleLayer2_BPIX.push_back(pxbL2);
+			nRecoHitsPerModuleLayer3_BPIX.push_back(pxbL3);
+			nRecoHitsPerModuleLayer4_BPIX.push_back(pxbL4);
+			nRecoHitsPerModuleLayer1_FPIX_pos.push_back(pxfL1p);
+			nRecoHitsPerModuleLayer2_FPIX_pos.push_back(pxfL2p);
+			nRecoHitsPerModuleLayer3_FPIX_pos.push_back(pxfL3p);
+			nRecoHitsPerModuleLayer1_FPIX_neg.push_back(pxfL1n);
+			nRecoHitsPerModuleLayer2_FPIX_neg.push_back(pxfL2n);
+			nRecoHitsPerModuleLayer3_FPIX_neg.push_back(pxfL3n);
 
 		}
 	}
@@ -648,7 +826,7 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 					unsigned int nLayersFPIX = 0;
 					unsigned int nLayersBPIX = 0;
 					unsigned int nHitsPerLayer_BPIX[4] = {0};				
-					unsigned int nHitsPerLayer_FPIX[4] = {0};		
+					unsigned int nHitsPerLayer_FPIX[6] = {0};		
 
 					auto gsfTrack = eleItr->gsfTrack();
 					auto seed = gsfTrack->seedRef();
@@ -692,14 +870,18 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 								{
 									if(verbose_)	
 										std::cout << "Endcap disk: " << tTopo->pxfDisk(det) << std::endl;
-									if(tTopo->pxfDisk(det)==1)
+									if(tTopo->pxfDisk(det)==1 && tTopo->pxfSide(det)==2)
 										++nHitsPerLayer_FPIX[0];
-									if(tTopo->pxfDisk(det)==2)
+									if(tTopo->pxfDisk(det)==1 && tTopo->pxfSide(det)==1)
+										++nHitsPerLayer_FPIX[3];							
+									if(tTopo->pxfDisk(det)==2 && tTopo->pxfSide(det)==2)
 										++nHitsPerLayer_FPIX[1];
-									if(tTopo->pxfDisk(det)==3)
+									if(tTopo->pxfDisk(det)==2 && tTopo->pxfSide(det)==1)
+										++nHitsPerLayer_FPIX[4];							
+									if(tTopo->pxfDisk(det)==3 && tTopo->pxfSide(det)==2)
 										++nHitsPerLayer_FPIX[2];
-									if(tTopo->pxfDisk(det)==4)
-										++nHitsPerLayer_FPIX[3];										
+									if(tTopo->pxfDisk(det)==3 && tTopo->pxfSide(det)==1)
+										++nHitsPerLayer_FPIX[5];										
 								}
 							}
 						}
@@ -709,18 +891,21 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 					{
 						if(nHitsPerLayer_BPIX[i]>0)
 							++nLayersBPIX;
-						if(nHitsPerLayer_FPIX[i]>0)
-							++nLayersFPIX;
 					}		
+					for(unsigned int i=0;i<3;++i)
+					{
+						if(nHitsPerLayer_FPIX[i]>0 || nHitsPerLayer_FPIX[i+3]>0)
+							++nLayersFPIX;
+					}	
 					
 					if(verbose_)
 					{
 						std::cout<<" Matched reco electron "<<std::endl;
-						std::cout<< " nLayers with hits BPIX : "<<nLayersBPIX << " and FPIX " << nLayersFPIX<< std::endl;
-						std::cout<< " Layer 1 hits BPIX : "<<nHitsPerLayer_BPIX[0] << " and FPIX " << nHitsPerLayer_FPIX[0] << std::endl;
-						std::cout<< " Layer 2 hits BPIX : "<<nHitsPerLayer_BPIX[1] << " and FPIX " << nHitsPerLayer_FPIX[1] << std::endl;
-						std::cout<< " Layer 3 hits BPIX : "<<nHitsPerLayer_BPIX[2] << " and FPIX " << nHitsPerLayer_FPIX[2] << std::endl;
-						std::cout<< " Layer 4 hits BPIX : "<<nHitsPerLayer_BPIX[3] << " and FPIX " << nHitsPerLayer_FPIX[3] << std::endl;
+						std::cout<< " nLayers with hits BPIX : "<<nLayersBPIX << " and FPIX " << nLayersFPIX << std::endl;
+						std::cout<< " Layer 1 hits BPIX : "<<nHitsPerLayer_BPIX[0] << " and FPIX pos " << nHitsPerLayer_FPIX[0] << " and FPIX neg "<< nHitsPerLayer_FPIX[3]<< std::endl;
+						std::cout<< " Layer 2 hits BPIX : "<<nHitsPerLayer_BPIX[1] << " and FPIX pos " << nHitsPerLayer_FPIX[1] << " and FPIX neg "<< nHitsPerLayer_FPIX[4]<< std::endl;
+						std::cout<< " Layer 3 hits BPIX : "<<nHitsPerLayer_BPIX[2] << " and FPIX pos " << nHitsPerLayer_FPIX[2] << " and FPIX neg "<< nHitsPerLayer_FPIX[5]<< std::endl;
+						std::cout<< " Layer 4 hits BPIX : "<<nHitsPerLayer_BPIX[3] << std::endl;
 					}
 
 					if(useGsfElectrons)
@@ -729,10 +914,12 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 						nRecoHitsLayer2_BPIX.push_back(nHitsPerLayer_BPIX[1]);
 						nRecoHitsLayer3_BPIX.push_back(nHitsPerLayer_BPIX[2]);
 						nRecoHitsLayer4_BPIX.push_back(nHitsPerLayer_BPIX[3]);
-						nRecoHitsLayer1_FPIX.push_back(nHitsPerLayer_FPIX[0]);
-						nRecoHitsLayer2_FPIX.push_back(nHitsPerLayer_FPIX[1]);
-						nRecoHitsLayer3_FPIX.push_back(nHitsPerLayer_FPIX[2]);
-						nRecoHitsLayer4_FPIX.push_back(nHitsPerLayer_FPIX[3]);
+						nRecoHitsLayer1_FPIX_pos.push_back(nHitsPerLayer_FPIX[0]);
+						nRecoHitsLayer2_FPIX_pos.push_back(nHitsPerLayer_FPIX[1]);
+						nRecoHitsLayer3_FPIX_pos.push_back(nHitsPerLayer_FPIX[2]);
+						nRecoHitsLayer1_FPIX_neg.push_back(nHitsPerLayer_FPIX[3]);
+						nRecoHitsLayer2_FPIX_neg.push_back(nHitsPerLayer_FPIX[4]);
+						nRecoHitsLayer3_FPIX_neg.push_back(nHitsPerLayer_FPIX[5]);
 
 						nRecoHitLayersBPIX.push_back(nLayersBPIX);
 						nRecoHitLayersFPIX.push_back(nLayersFPIX);
