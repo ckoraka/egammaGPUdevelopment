@@ -82825,6 +82825,9 @@ process.hltL1TGlobalSummary = cms.EDAnalyzer( "L1TGlobalSummary",
     psColumn = cms.int32( 0 )
 )
 
+################################################################################
+# Charis #######################################################################
+
 process.genParticles = cms.EDProducer('GenParticles',
     src = cms.InputTag('genParticles'),
     select = cms.vstring(
@@ -82832,14 +82835,60 @@ process.genParticles = cms.EDProducer('GenParticles',
     )
 )
 
-process.egammaReconstruction = cms.EDAnalyzer(
-    'egSeedingEff',
-     electron = cms.InputTag('hltEgammaGsfElectrons'),
-     genParticles = cms.InputTag("genParticles"),   
-     trackingParticles = cms.InputTag("mix", "MergedTrackTruth"),			
-     verbose = cms.bool(False),     
-     deltaR = cms.double(0.05),     
+process.simHitTPAssocProducer = cms.EDProducer("SimHitTPAssociationProducer",
+  simHitSrc = cms.VInputTag(
+    cms.InputTag('g4SimHits','TrackerHitsPixelBarrelLowTof'),
+    cms.InputTag('g4SimHits','TrackerHitsPixelBarrelHighTof'),
+    cms.InputTag('g4SimHits','TrackerHitsPixelEndcapLowTof'),
+    cms.InputTag('g4SimHits','TrackerHitsPixelEndcapHighTof'),
+  ),
+  trackingParticleSrc = cms.InputTag('mix', 'MergedTrackTruth'),
 )
+
+process.clusterTPAssociationProducer = cms.EDProducer("ClusterTPAssociationProducer",
+  simTrackSrc = cms.InputTag('g4SimHits'),
+  pixelSimLinkSrc = cms.InputTag('simSiPixelDigis'),
+  stripSimLinkSrc = cms.InputTag('simSiStripDigis'),
+  pixelClusterSrc = cms.InputTag('hltSiPixelClusters'),
+  stripClusterSrc = cms.InputTag('hltSiStripClusters'),
+)
+
+process.egammaReconstructionEB = cms.EDAnalyzer('egSeedingEff',
+  electron = cms.InputTag('hltEgammaGsfElectrons'),
+  genParticles = cms.InputTag("genParticles"),   
+  trackingParticles = cms.InputTag("mix", "MergedTrackTruth"),			
+  simHitSrc = cms.VInputTag(
+    cms.InputTag('g4SimHits','TrackerHitsPixelBarrelLowTof'),
+    cms.InputTag('g4SimHits','TrackerHitsPixelBarrelHighTof'),
+    cms.InputTag('g4SimHits','TrackerHitsPixelEndcapLowTof'),
+    cms.InputTag('g4SimHits','TrackerHitsPixelEndcapHighTof') 
+  ),
+  cluster2TPSrc = cms.InputTag("clusterTPAssociationProducer"),
+  pixelRecHits = cms.InputTag('hltSiPixelRecHits'),
+  verbose = cms.bool(False),     
+  deltaR = cms.double(0.05),
+  isBarrel = cms.bool(True),
+)
+
+process.egammaReconstructionEE = cms.EDAnalyzer('egSeedingEff',
+  electron = cms.InputTag('hltEgammaGsfElectrons'),
+  genParticles = cms.InputTag("genParticles"),   
+  trackingParticles = cms.InputTag("mix", "MergedTrackTruth"),			
+  simHitSrc = cms.VInputTag(
+    cms.InputTag('g4SimHits','TrackerHitsPixelBarrelLowTof'),
+    cms.InputTag('g4SimHits','TrackerHitsPixelBarrelHighTof'),
+    cms.InputTag('g4SimHits','TrackerHitsPixelEndcapLowTof'),
+    cms.InputTag('g4SimHits','TrackerHitsPixelEndcapHighTof') 
+  ),
+  cluster2TPSrc = cms.InputTag("clusterTPAssociationProducer"),
+  pixelRecHits = cms.InputTag('hltSiPixelRecHits'),
+  verbose = cms.bool(False),     
+  deltaR = cms.double(0.05),
+  isBarrel = cms.bool(False),
+)
+
+
+#################################################################################
 
 process.hltTrigReport = cms.EDAnalyzer( "HLTrigReport",
     HLTriggerResults = cms.InputTag( 'TriggerResults','','@currentProcess' ),
@@ -84953,7 +85002,7 @@ process.HLTDoFullUnpackingEgammaEcalSequence = cms.Sequence( process.HLTDoFullUn
 process.HLTPFClusteringForEgamma = cms.Sequence( process.hltRechitInRegionsECAL + process.hltRechitInRegionsES + process.hltParticleFlowRecHitECALL1Seeded + process.hltParticleFlowRecHitPSL1Seeded + process.hltParticleFlowClusterPSL1Seeded + process.hltParticleFlowClusterECALUncorrectedL1Seeded + process.hltParticleFlowClusterECALL1Seeded + process.hltParticleFlowSuperClusterECALL1Seeded )
 process.HLTFastJetForEgamma = cms.Sequence( process.hltFixedGridRhoFastjetAllCaloForMuons )
 process.HLTElePixelMatchSequence = cms.Sequence( process.HLTDoLocalPixelSequence + process.HLTDoLocalStripSequence + process.hltPixelLayerPairs + process.hltPixelLayerTriplets + process.hltEgammaHoverE + process.hltEgammaSuperClustersToPixelMatch + process.hltEleSeedsTrackingRegions + process.hltElePixelHitDoublets + process.hltElePixelHitDoubletsForTriplets + process.hltElePixelHitTriplets + process.hltElePixelSeedsDoublets + process.hltElePixelSeedsTriplets + process.hltElePixelSeedsCombined + process.hltEgammaElectronPixelSeeds + process.hltEgammaPixelMatchVars )
-process.HLTGsfElectronSequence = cms.Sequence( process.hltEgammaCkfTrackCandidatesForGSF + process.hltEgammaGsfTracks + process.hltEgammaGsfElectrons + process.egammaReconstruction + process.hltEgammaGsfTrackVars )
+process.HLTGsfElectronSequence = cms.Sequence( process.hltEgammaCkfTrackCandidatesForGSF + process.hltEgammaGsfTracks + process.hltEgammaGsfElectrons + process.clusterTPAssociationProducer + process.egammaReconstructionEB + process.egammaReconstructionEE + process.hltEgammaGsfTrackVars )
 process.HLTDiMu5DiEle3CaloIdLTrackIdLElectronlegSequence = cms.Sequence( process.HLTDoFullUnpackingEgammaEcalSequence + process.HLTPFClusteringForEgamma + process.hltEgammaCandidates + process.hltDiMu5Ele3CaloIdLTrackIdLElectronlegL1MatchFilter + process.hltDiMu5Ele3CaloIdLTrackIdLElectronlegEtFilter + process.hltEgammaClusterShape + process.hltDiMu5Ele3CaloIdLTrackIdLElectronlegClusterShapeFilter + process.HLTDoLocalHcalSequence + process.HLTFastJetForEgamma + process.hltEgammaHoverE + process.hltDiMu5Ele3CaloIdLTrackIdLElectronlegHEFilter + process.HLTElePixelMatchSequence + process.hltDiMu5Ele3CaloIdLTrackIdLElectronlegPixelMatchFilter + process.HLTGsfElectronSequence + process.hltDiMu5Ele3CaloIdLTrackIdLElectronlegOneOEMinusOneOPFilter + process.hltDiMu5Ele3CaloIdLTrackIdLElectronlegDetaFilter + process.hltDiMu5Ele3CaloIdLTrackIdLElectronlegDphiFilter )
 process.HLTDiMu3DiEle7p5CaloIdLTrackIdLMuonlegSequence = cms.Sequence( process.hltDiMu3DiEle7p5CaloIdLTrackIdLMuonlegL1Filtered0 + process.HLTL2muonrecoSequence + cms.ignore(process.hltDiMu3DiEle7p5CaloIdLTrackIdLMuonlegL2Filtered0) + process.HLTL3muonrecoSequence + cms.ignore(process.hltL1fForIterL3DiMu3DiEle7p5CaloIdLTrackIdLMuonlegL1Filtered0) + process.hltL3fL1DoubleMu3DiEG7p5f0Filtered3 )
 process.HLTDiMu3DiEle7p5CaloIdLTrackIdLElectronlegSequence = cms.Sequence( process.HLTDoFullUnpackingEgammaEcalSequence + process.HLTPFClusteringForEgamma + process.hltEgammaCandidates + process.hltDiMu3DiEle7p5CaloIdLTrackIdLElectronlegL1MatchFilter + process.hltDiMu3DiEle7p5CaloIdLTrackIdLElectronlegEtFilter + process.hltEgammaClusterShape + process.hltDiMu3DiEle7p5CaloIdLTrackIdLElectronlegClusterShapeFilter + process.HLTDoLocalHcalSequence + process.HLTFastJetForEgamma + process.hltEgammaHoverE + process.hltDiMu3DiEle7p5CaloIdLTrackIdLElectronlegHEFilter + process.HLTElePixelMatchSequence + process.hltDiMu3DiEle7p5CaloIdLTrackIdLElectronlegPixelMatchFilter + process.HLTGsfElectronSequence + process.hltDiMu3DiEle7p5CaloIdLTrackIdLElectronlegOneOEMinusOneOPFilter + process.hltDiMu3DiEle7p5CaloIdLTrackIdLElectronlegDetaFilter + process.hltDiMu3DiEle7p5CaloIdLTrackIdLElectronlegDphiFilter )
@@ -85341,7 +85390,7 @@ process.source = cms.Source( "PoolSource",
 )
 
 process.TFileService = cms.Service("TFileService",
-      fileName = cms.string("outputAnalyzer.root"),
+      fileName = cms.string("outputFromSeedEff.root"),
       closeFileFast = cms.untracked.bool(True)
 )
 
@@ -85415,9 +85464,15 @@ _customInfo['globalTags'][False] = "auto:run3_mc_GRun"
 _customInfo['inputFiles']={}
 _customInfo['inputFiles'][True]  = "file:RelVal_Raw_GRun_DATA.root"
 _customInfo['inputFiles'][False] = "file:RelVal_Raw_GRun_MC.root"
-_customInfo['maxEvents' ]=  100
+_customInfo['maxEvents' ]=  -1
 _customInfo['globalTag' ]= "auto:phase1_2022_realistic"
-_customInfo['inputFile' ]=  ['/store/relval/CMSSW_12_6_0_pre4/RelValZEE_14/GEN-SIM-DIGI-RAW/125X_mcRun3_2022_realistic_v4-v1/2580000/94a518d8-73e4-4cba-a97f-23f8c2c9834c.root']
+_customInfo['inputFile' ]=  [
+    '/store/relval/CMSSW_12_6_0_pre4/RelValZEE_14/GEN-SIM-DIGI-RAW/125X_mcRun3_2022_realistic_v4-v1/2580000/02a997dc-b6c3-47f5-9b56-28ad72cef7b7.root',
+    '/store/relval/CMSSW_12_6_0_pre4/RelValZEE_14/GEN-SIM-DIGI-RAW/125X_mcRun3_2022_realistic_v4-v1/2580000/1b7818bc-607e-498b-91e5-9af347819fc1.root',
+    '/store/relval/CMSSW_12_6_0_pre4/RelValZEE_14/GEN-SIM-DIGI-RAW/125X_mcRun3_2022_realistic_v4-v1/2580000/5688e67a-ee8b-4f7c-aad2-f2ae688387d9.root',
+    '/store/relval/CMSSW_12_6_0_pre4/RelValZEE_14/GEN-SIM-DIGI-RAW/125X_mcRun3_2022_realistic_v4-v1/2580000/94a518d8-73e4-4cba-a97f-23f8c2c9834c.root',
+    '/store/relval/CMSSW_12_6_0_pre4/RelValZEE_14/GEN-SIM-DIGI-RAW/125X_mcRun3_2022_realistic_v4-v1/2580000/cb9c4c23-272a-4c24-9b06-072a2421fbb2.root'
+    ]
 _customInfo['realData'  ]=  False
 
 from HLTrigger.Configuration.customizeHLTforALL import customizeHLTforAll
