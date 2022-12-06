@@ -30,7 +30,42 @@ def parse_arguments():
 def createDir(path):
     if not os.path.exists(path):
         os.makedirs(path)
-  
+
+def plotHitsPerModule(hists,name):
+
+    paveCMS = r.TPaveText(0.07,0.93,0.92,0.96,"NDC");
+    paveCMS.AddText("#bf{CMS Simulation} (#it{Work In Progress)}                       Run-3 (14 TeV)")
+    paveCMS.SetFillColor(0)
+    paveCMS.SetBorderSize(0)
+    paveCMS.SetTextSize(0.04)
+    paveCMS.SetTextFont(42)
+
+    colors = [2,4,6,7,8,9,30,46]
+    l1 = r.TLegend(.7, .55, .89, .85)
+    c = r.TCanvas("c", "canvas", 900, 700)
+    c.cd()
+    l1.AddEntry(hists[0],"Module 1","l")   
+    l1.AddEntry(hists[1],"Module 2","l")   
+    l1.AddEntry(hists[2],"Module 3","l")   
+    l1.AddEntry(hists[3],"Module 4","l")   
+    l1.AddEntry(hists[4],"Module 5","l")   
+    l1.AddEntry(hists[5],"Module 6","l")   
+    l1.AddEntry(hists[6],"Module 7","l")   
+    l1.AddEntry(hists[7],"Module 8","l")   
+
+    hists[0].Draw("HIST")
+    hists[0].SetLineWidth(2)
+
+    for m in range(1,8):
+        hists[m].SetLineColor(colors[m])
+        hists[m].SetLineWidth(2)
+        hists[m].Draw("HIST same")
+
+    paveCMS.Draw("same")
+    l1.Draw("same")
+
+    c.SaveAs(name)
+
 def doubletComb(BPX1,BPX2,BPX3,BPX4,FPXp1,FPXp2,FPXp3,FPXn1,FPXn2,FPXn3):
 
     doublets = [0]*20
@@ -132,9 +167,43 @@ def main(options, paths):
 
     recoZpeak = r.TH1F("recoMass",";mass [GeV]",20,50.,150.)
 
+    sim_moduleHistsBPIX_L1=[]
+    sim_moduleHistsBPIX_L2=[]
+    sim_moduleHistsBPIX_L3=[]
+    sim_moduleHistsBPIX_L4=[]
+    sim_moduleHistsFPIX_L1=[]
+    sim_moduleHistsFPIX_L2=[]
+    sim_moduleHistsFPIX_L3=[]
+
+    for module in range(0,8):  
+        sim_moduleHistsBPIX_L1.append(r.TH1F("nSimHitsPerModuleL1BPIX_"+str(module),";Number of hits per module in BPIX Layer1 ",8,0,8))
+        sim_moduleHistsBPIX_L2.append(r.TH1F("nSimHitsPerModuleL2BPIX_"+str(module),";Number of hits per module in BPIX Layer2 ",8,0,8))
+        sim_moduleHistsBPIX_L3.append(r.TH1F("nSimHitsPerModuleL3BPIX_"+str(module),";Number of hits per module in BPIX Layer3 ",8,0,8))
+        sim_moduleHistsBPIX_L4.append(r.TH1F("nSimHitsPerModuleL4BPIX_"+str(module),";Number of hits per module in BPIX Layer4 ",8,0,8))
+        sim_moduleHistsFPIX_L1.append(r.TH1F("nSimHitsPerModuleL1FPIX_"+str(module),";Number of hits per module in FPIX Layer1 ",8,0,8))
+        sim_moduleHistsFPIX_L2.append(r.TH1F("nSimHitsPerModuleL2FPIX_"+str(module),";Number of hits per module in FPIX Layer2 ",8,0,8))
+        sim_moduleHistsFPIX_L3.append(r.TH1F("nSimHitsPerModuleL3FPIX_"+str(module),";Number of hits per module in FPIX Layer3 ",8,0,8))
+
+    reco_moduleHistsBPIX_L1=[]
+    reco_moduleHistsBPIX_L2=[]
+    reco_moduleHistsBPIX_L3=[]
+    reco_moduleHistsBPIX_L4=[]
+    reco_moduleHistsFPIX_L1=[]
+    reco_moduleHistsFPIX_L2=[]
+    reco_moduleHistsFPIX_L3=[]
+
+    for module in range(0,8):  
+        reco_moduleHistsBPIX_L1.append(r.TH1F("nRecoHitsPerModuleL1BPIX_"+str(module),";Number of hits per module in BPIX Layer1 ",8,0,8))
+        reco_moduleHistsBPIX_L2.append(r.TH1F("nRecoHitsPerModuleL2BPIX_"+str(module),";Number of hits per module in BPIX Layer2 ",8,0,8))
+        reco_moduleHistsBPIX_L3.append(r.TH1F("nRecoHitsPerModuleL3BPIX_"+str(module),";Number of hits per module in BPIX Layer3 ",8,0,8))
+        reco_moduleHistsBPIX_L4.append(r.TH1F("nRecoHitsPerModuleL4BPIX_"+str(module),";Number of hits per module in BPIX Layer4 ",8,0,8))
+        reco_moduleHistsFPIX_L1.append(r.TH1F("nRecoHitsPerModuleL1FPIX_"+str(module),";Number of hits per module in FPIX Layer1 ",8,0,8))
+        reco_moduleHistsFPIX_L2.append(r.TH1F("nRecoHitsPerModuleL2FPIX_"+str(module),";Number of hits per module in FPIX Layer2 ",8,0,8))
+        reco_moduleHistsFPIX_L3.append(r.TH1F("nRecoHitsPerModuleL3FPIX_"+str(module),";Number of hits per module in FPIX Layer3 ",8,0,8))
+
 
     f = r.TFile.Open(options.input)
-    for event in f.Get("egammaReconstructionEB/tree"):
+    for event in f.Get("egammaReconstructionEE/tree"):
         for electron in range(0,len(event.nSimHitLayersBPIX)):
             #if(event.isMatched[electron]):
             nSimHits.Fill(event.nSimHitLayersBPIX[electron])  
@@ -182,6 +251,91 @@ def main(options, paths):
                 pixelDoubletTypeSim.Fill(index,doubletsSim[index])
  
             numberOfPixelDoubletsSim.Fill(sum(doubletsSim))
+
+            ## Number of hits per module for each Pixel layer 
+            mod = [0] * 8
+            for part in range(0,len(event.nSimHitsLayer1_BPIX)):
+                for hit in range(0,len(event.nSimHitsPerModuleLayer1_BPIX[part])):
+                    for m in range(1,9):
+                        if(event.nSimHitsPerModuleLayer1_BPIX[part][hit]==m):
+                            mod[m-1] = mod[m-1] + 1
+            for m in range(0,8):
+                sim_moduleHistsBPIX_L1[m].Fill(mod[m])
+
+            ##
+            mod = [0] * 8
+            for part in range(0,len(event.nSimHitsLayer2_BPIX)):
+                for hit in range(0,len(event.nSimHitsPerModuleLayer2_BPIX[part])):
+                    for m in range(1,9):
+                        if(event.nSimHitsPerModuleLayer2_BPIX[part][hit]==m):
+                            mod[m-1] = mod[m-1] + 1
+            for m in range(0,8):
+                sim_moduleHistsBPIX_L2[m].Fill(mod[m])
+
+            ##
+            mod = [0] * 8
+            for part in range(0,len(event.nSimHitsLayer3_BPIX)):
+                for hit in range(0,len(event.nSimHitsPerModuleLayer3_BPIX[part])):
+                    for m in range(1,9):
+                        if(event.nSimHitsPerModuleLayer3_BPIX[part][hit]==m):
+                            mod[m-1] = mod[m-1] + 1
+            for m in range(0,8):
+                sim_moduleHistsBPIX_L3[m].Fill(mod[m])
+
+            ##
+            mod = [0] * 8
+            for part in range(0,len(event.nSimHitsLayer4_BPIX)):
+                for hit in range(0,len(event.nSimHitsPerModuleLayer4_BPIX[part])):
+                    for m in range(1,9):
+                        if(event.nSimHitsPerModuleLayer4_BPIX[part][hit]==m):
+                            mod[m-1] = mod[m-1] + 1
+            for m in range(0,8):
+                sim_moduleHistsBPIX_L4[m].Fill(mod[m])                
+
+            ##
+            mod = [0] * 8
+            for part in range(0,len(event.nSimHitsLayer1_FPIX_pos)):
+                for hit in range(0,len(event.nSimHitsPerModuleLayer1_FPIX_pos[part])):
+                    for m in range(1,9):
+                        if(event.nSimHitsPerModuleLayer1_FPIX_pos[part][hit]==m):
+                            mod[m-1] = mod[m-1] + 1
+            for part in range(0,len(event.nSimHitsLayer1_FPIX_neg)):
+                for hit in range(0,len(event.nSimHitsPerModuleLayer1_FPIX_neg[part])):
+                    for m in range(1,9):
+                        if(event.nSimHitsPerModuleLayer1_FPIX_neg[part][hit]==m):
+                            mod[m-1] = mod[m-1] + 1
+            for m in range(0,8):
+                sim_moduleHistsFPIX_L1[m].Fill(mod[m])
+
+            ##
+            mod = [0] * 8
+            for part in range(0,len(event.nSimHitsLayer2_FPIX_pos)):
+                for hit in range(0,len(event.nSimHitsPerModuleLayer2_FPIX_pos[part])):
+                    for m in range(1,9):
+                        if(event.nSimHitsPerModuleLayer2_FPIX_pos[part][hit]==m):
+                            mod[m-1] = mod[m-1] + 1
+            for part in range(0,len(event.nSimHitsLayer2_FPIX_neg)):
+                for hit in range(0,len(event.nSimHitsPerModuleLayer2_FPIX_neg[part])):
+                    for m in range(1,9):
+                        if(event.nSimHitsPerModuleLayer2_FPIX_neg[part][hit]==m):
+                            mod[m-1] = mod[m-1] + 1
+            for m in range(0,8):
+                sim_moduleHistsFPIX_L2[m].Fill(mod[m])
+
+            ##
+            mod = [0] * 8
+            for part in range(0,len(event.nSimHitsLayer3_FPIX_pos)):
+                for hit in range(0,len(event.nSimHitsPerModuleLayer3_FPIX_pos[part])):
+                    for m in range(1,9):
+                        if(event.nSimHitsPerModuleLayer3_FPIX_pos[part][hit]==m):
+                            mod[m-1] = mod[m-1] + 1
+            for part in range(0,len(event.nSimHitsLayer3_FPIX_neg)):
+                for hit in range(0,len(event.nSimHitsPerModuleLayer3_FPIX_neg[part])):
+                    for m in range(1,9):
+                        if(event.nSimHitsPerModuleLayer3_FPIX_neg[part][hit]==m):
+                            mod[m-1] = mod[m-1] + 1
+            for m in range(0,8):
+                sim_moduleHistsFPIX_L3[m].Fill(mod[m])              
 
 
         if(len(event.simEle_pt)==2):
@@ -250,6 +404,93 @@ def main(options, paths):
             if(len(event.nSimHitLayersBPIX)==len(event.nRecoHitLayersBPIX)):
                 nSimVsRecoHitsTotal.Fill(totalLayers,totalLayersReco)
                 nSimvsRecoDiffTotal.Fill(totalLayers-totalLayersReco)
+
+
+            ## Number of hits per module for each Pixel layer 
+            ## Number of hits per module for each Pixel layer 
+            mod = [0] * 8
+            for part in range(0,len(event.nRecoHitsLayer1_BPIX)):
+                for hit in range(0,len(event.nRecoHitsPerModuleLayer1_BPIX[part])):
+                    for m in range(1,9):
+                        if(event.nRecoHitsPerModuleLayer1_BPIX[part][hit]==m):
+                            mod[m-1] = mod[m-1] + 1
+            for m in range(0,8):
+                reco_moduleHistsBPIX_L1[m].Fill(mod[m])
+
+            ##
+            mod = [0] * 8
+            for part in range(0,len(event.nRecoHitsLayer2_BPIX)):
+                for hit in range(0,len(event.nRecoHitsPerModuleLayer2_BPIX[part])):
+                    for m in range(1,9):
+                        if(event.nRecoHitsPerModuleLayer2_BPIX[part][hit]==m):
+                            mod[m-1] = mod[m-1] + 1
+            for m in range(0,8):
+                reco_moduleHistsBPIX_L2[m].Fill(mod[m])
+
+            ##
+            mod = [0] * 8
+            for part in range(0,len(event.nRecoHitsLayer3_BPIX)):
+                for hit in range(0,len(event.nRecoHitsPerModuleLayer3_BPIX[part])):
+                    for m in range(1,9):
+                        if(event.nRecoHitsPerModuleLayer3_BPIX[part][hit]==m):
+                            mod[m-1] = mod[m-1] + 1
+            for m in range(0,8):
+                reco_moduleHistsBPIX_L3[m].Fill(mod[m])
+
+            ##
+            mod = [0] * 8
+            for part in range(0,len(event.nRecoHitsLayer4_BPIX)):
+                for hit in range(0,len(event.nRecoHitsPerModuleLayer4_BPIX[part])):
+                    for m in range(1,9):
+                        if(event.nRecoHitsPerModuleLayer4_BPIX[part][hit]==m):
+                            mod[m-1] = mod[m-1] + 1
+            for m in range(0,8):
+                reco_moduleHistsBPIX_L4[m].Fill(mod[m])                
+
+            ##
+            mod = [0] * 8
+            for part in range(0,len(event.nRecoHitsLayer1_FPIX_pos)):
+                for hit in range(0,len(event.nRecoHitsPerModuleLayer1_FPIX_pos[part])):
+                    for m in range(1,9):
+                        if(event.nRecoHitsPerModuleLayer1_FPIX_pos[part][hit]==m):
+                            mod[m-1] = mod[m-1] + 1
+            for part in range(0,len(event.nRecoHitsLayer1_FPIX_neg)):
+                for hit in range(0,len(event.nRecoHitsPerModuleLayer1_FPIX_neg[part])):
+                    for m in range(1,9):
+                        if(event.nRecoHitsPerModuleLayer1_FPIX_neg[part][hit]==m):
+                            mod[m-1] = mod[m-1] + 1
+            for m in range(0,8):
+                reco_moduleHistsFPIX_L1[m].Fill(mod[m])
+
+            ##
+            mod = [0] * 8
+            for part in range(0,len(event.nRecoHitsLayer2_FPIX_pos)):
+                for hit in range(0,len(event.nRecoHitsPerModuleLayer2_FPIX_pos[part])):
+                    for m in range(1,9):
+                        if(event.nRecoHitsPerModuleLayer2_FPIX_pos[part][hit]==m):
+                            mod[m-1] = mod[m-1] + 1
+            for part in range(0,len(event.nRecoHitsLayer2_FPIX_neg)):
+                for hit in range(0,len(event.nRecoHitsPerModuleLayer2_FPIX_neg[part])):
+                    for m in range(1,9):
+                        if(event.nRecoHitsPerModuleLayer2_FPIX_neg[part][hit]==m):
+                            mod[m-1] = mod[m-1] + 1
+            for m in range(0,8):
+                reco_moduleHistsFPIX_L2[m].Fill(mod[m])
+
+            ##
+            mod = [0] * 8
+            for part in range(0,len(event.nRecoHitsLayer3_FPIX_pos)):
+                for hit in range(0,len(event.nRecoHitsPerModuleLayer3_FPIX_pos[part])):
+                    for m in range(1,9):
+                        if(event.nRecoHitsPerModuleLayer3_FPIX_pos[part][hit]==m):
+                            mod[m-1] = mod[m-1] + 1
+            for part in range(0,len(event.nRecoHitsLayer3_FPIX_neg)):
+                for hit in range(0,len(event.nRecoHitsPerModuleLayer3_FPIX_neg[part])):
+                    for m in range(1,9):
+                        if(event.nRecoHitsPerModuleLayer3_FPIX_neg[part][hit]==m):
+                            mod[m-1] = mod[m-1] + 1
+            for m in range(0,8):
+                reco_moduleHistsFPIX_L3[m].Fill(mod[m])   
 
         if(len(event.recoEle_pt)==2):
             v1 = r.TLorentzVector()
@@ -496,10 +737,26 @@ def main(options, paths):
     numberOfPixelDoubletsReco.SetLineColor(r.kBlue)
     numberOfPixelDoubletsReco.SetLineWidth(2)
     numberOfPixelDoubletsSim.Draw("HIST")
-    numberOfPixelDoubletsReco.Draw("HITS same")
+    numberOfPixelDoubletsReco.Draw("HIST same")
     paveCMS.Draw("same")
     l0.Draw("same")
     c.SaveAs('NumberOfDoublets.png')  
+
+    c = plotHitsPerModule(sim_moduleHistsBPIX_L1,"nSimHitsPerModule_L1_BPIX.png")
+    c = plotHitsPerModule(sim_moduleHistsBPIX_L2,"nSimHitsPerModule_L2_BPIX.png")
+    c = plotHitsPerModule(sim_moduleHistsBPIX_L3,"nSimHitsPerModule_L3_BPIX.png")
+    c = plotHitsPerModule(sim_moduleHistsBPIX_L4,"nSimHitsPerModule_L4_BPIX.png")
+    c = plotHitsPerModule(sim_moduleHistsFPIX_L1,"nSimHitsPerModule_L1_FPIX.png")
+    c = plotHitsPerModule(sim_moduleHistsFPIX_L2,"nSimHitsPerModule_L2_FPIX.png")
+    c = plotHitsPerModule(sim_moduleHistsFPIX_L3,"nSimHitsPerModule_L3_FPIX.png")
+
+    c = plotHitsPerModule(reco_moduleHistsBPIX_L1,"nRecoHitsPerModule_L1_BPIX.png")
+    c = plotHitsPerModule(reco_moduleHistsBPIX_L2,"nRecoHitsPerModule_L2_BPIX.png")
+    c = plotHitsPerModule(reco_moduleHistsBPIX_L3,"nRecoHitsPerModule_L3_BPIX.png")
+    c = plotHitsPerModule(reco_moduleHistsBPIX_L4,"nRecoHitsPerModule_L4_BPIX.png")
+    c = plotHitsPerModule(reco_moduleHistsFPIX_L1,"nRecoHitsPerModule_L1_FPIX.png")
+    c = plotHitsPerModule(reco_moduleHistsFPIX_L2,"nRecoHitsPerModule_L2_FPIX.png")
+    c = plotHitsPerModule(reco_moduleHistsFPIX_L3,"nRecoHitsPerModule_L3_FPIX.png")
 
 
 if __name__ == '__main__':
