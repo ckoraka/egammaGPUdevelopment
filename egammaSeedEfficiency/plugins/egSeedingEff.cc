@@ -159,6 +159,16 @@ class egSeedingEff : public edm::one::EDAnalyzer<edm::one::SharedResources, edm:
 		std::vector<std::vector<int>>  nRecoHitsPerModuleLayer2_FPIX_neg;
 		std::vector<std::vector<int>>  nRecoHitsPerModuleLayer3_FPIX_neg;
 
+		std::vector<std::vector<float>>  recHit_x;
+		std::vector<std::vector<float>>  recHit_y;
+		std::vector<std::vector<float>>  recHit_z;
+		std::vector<std::vector<int>>    recHit_l;
+
+		std::vector<std::vector<float>>  simHit_x;
+		std::vector<std::vector<float>>  simHit_y;
+		std::vector<std::vector<float>>  simHit_z;
+		std::vector<std::vector<int>>    simHit_l;
+
 		int run_, lumi_, event_;
 		bool verbose_;
 		double DeltaR_;
@@ -263,6 +273,15 @@ void egSeedingEff::initialize() {
 	this -> nRecoHitsPerModuleLayer2_FPIX_neg.clear();
 	this -> nRecoHitsPerModuleLayer3_FPIX_neg.clear();
 
+	this -> recHit_x.clear();
+	this -> recHit_y.clear();
+	this -> recHit_z.clear();
+	this -> recHit_l.clear();
+
+	this -> simHit_x.clear();
+	this -> simHit_y.clear();
+	this -> simHit_z.clear();
+	this -> simHit_l.clear();
 }
 
 void egSeedingEff::beginJob() 
@@ -333,6 +352,16 @@ void egSeedingEff::beginJob()
 	tree->Branch("nRecoHitsPerModuleLayer1_FPIX_neg", "std::vector<std::vector<int>>", &nRecoHitsPerModuleLayer1_FPIX_neg );
 	tree->Branch("nRecoHitsPerModuleLayer2_FPIX_neg", "std::vector<std::vector<int>>", &nRecoHitsPerModuleLayer2_FPIX_neg );
 	tree->Branch("nRecoHitsPerModuleLayer3_FPIX_neg", "std::vector<std::vector<int>>", &nRecoHitsPerModuleLayer3_FPIX_neg );
+
+	tree->Branch("recHit_x" , "std::vector<std::vector<float>>", &recHit_x );
+	tree->Branch("recHit_y", "std::vector<std::vector<float>>", &recHit_y );
+	tree->Branch("recHit_z", "std::vector<std::vector<float>>", &recHit_z );
+	tree->Branch("recHit_l", "std::vector<std::vector<int>>", &recHit_l );
+
+	tree->Branch("simHit_x" , "std::vector<std::vector<float>>", &simHit_x );
+	tree->Branch("simHit_y", "std::vector<std::vector<float>>", &simHit_y );
+	tree->Branch("simHit_z", "std::vector<std::vector<float>>", &simHit_z );
+	tree->Branch("simHit_l", "std::vector<std::vector<int>>", &simHit_l );
 
 	tree->Branch("recoEle_pt" , "std::vector<float>", &recoEle_pt );
 	tree->Branch("recoEle_eta", "std::vector<float>", &recoEle_eta );
@@ -500,6 +529,8 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 		unsigned int nHitsPerLayer_BPIX[4] = {0};				
 		unsigned int nHitsPerLayer_FPIX[6] = {0};
 		std::vector<int> pxbL1(0),pxbL2(0),pxbL3(0),pxbL4(0),pxfL1p(0),pxfL2p(0),pxfL3p(0),pxfL1n(0),pxfL2n(0),pxfL3n(0);
+		std::vector<float> rx(0),ry(0),rz(0);
+		std::vector<int> rl(0);
 
 		for(size_t TrackIdsCounter = 0; TrackIdsCounter < TrackIds.size(); ++TrackIdsCounter)
 		{
@@ -535,27 +566,36 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 						std::cout<< " simHit.eventId().rawId() "<< simHit.eventId().rawId()<<std::endl;
 					}
 
-					DetId theDetUnitId = simHit.detUnitId();					
+					DetId theDetUnitId = simHit.detUnitId();	
+					GlobalPoint gp = tGeom->idToDet(theDetUnitId)->surface().toGlobal(simHit.localPosition());
+					rx.push_back(gp.x());
+					ry.push_back(gp.y());
+					rz.push_back(gp.z());
+					
 					if(theDetUnitId.subdetId() == PixelSubdetector::PixelBarrel)
-					{
+					{						
 						if(verbose_)
 							std::cout<<" Barrel Layer: "<< tTopo->pxbLayer(theDetUnitId) << "  and module " << tTopo->pxbModule(theDetUnitId) <<std::endl;
 
 						if(tTopo->pxbLayer(theDetUnitId)==1){
 							++nHitsPerLayer_BPIX[0];
 							pxbL1.push_back(tTopo->pxbModule(theDetUnitId));
+							rl.push_back(1);
 						}							
 						if(tTopo->pxbLayer(theDetUnitId)==2){
 							++nHitsPerLayer_BPIX[1];
 							pxbL2.push_back(tTopo->pxbModule(theDetUnitId));
+							rl.push_back(2);
 						}	
 						if(tTopo->pxbLayer(theDetUnitId)==3){
 							++nHitsPerLayer_BPIX[2];
 							pxbL3.push_back(tTopo->pxbModule(theDetUnitId));
+							rl.push_back(3);
 						}	
 						if(tTopo->pxbLayer(theDetUnitId)==4){
 							++nHitsPerLayer_BPIX[3];
 							pxbL4.push_back(tTopo->pxbModule(theDetUnitId));
+							rl.push_back(4);
 						}
 					}
 
@@ -567,26 +607,32 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 						if(tTopo->pxfDisk(theDetUnitId)==1 && tTopo->pxfSide(theDetUnitId)==2){
 							++nHitsPerLayer_FPIX[0];
 							pxfL1p.push_back(tTopo->pxfModule(theDetUnitId));
+							rl.push_back(5);
 						}
 						if(tTopo->pxfDisk(theDetUnitId)==1 && tTopo->pxfSide(theDetUnitId)==1){
 							++nHitsPerLayer_FPIX[3];							
 							pxfL1n.push_back(tTopo->pxfModule(theDetUnitId));
+							rl.push_back(6);
 						}
 						if(tTopo->pxfDisk(theDetUnitId)==2 && tTopo->pxfSide(theDetUnitId)==2){
 							++nHitsPerLayer_FPIX[1];
 							pxfL2p.push_back(tTopo->pxfModule(theDetUnitId));
+							rl.push_back(7);
 						}
 						if(tTopo->pxfDisk(theDetUnitId)==2 && tTopo->pxfSide(theDetUnitId)==1){
 							++nHitsPerLayer_FPIX[4];	
 							pxfL2n.push_back(tTopo->pxfModule(theDetUnitId));
+							rl.push_back(8);
 						}
 						if(tTopo->pxfDisk(theDetUnitId)==3 && tTopo->pxfSide(theDetUnitId)==2){
 							++nHitsPerLayer_FPIX[2];
 							pxfL3p.push_back(tTopo->pxfModule(theDetUnitId));
+							rl.push_back(9);
 						}
 						if(tTopo->pxfDisk(theDetUnitId)==3 && tTopo->pxfSide(theDetUnitId)==1){
 							++nHitsPerLayer_FPIX[5];
 							pxfL3n.push_back(tTopo->pxfModule(theDetUnitId));
+							rl.push_back(10);
 						}
 					}
 				}
@@ -636,6 +682,10 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 		nSimHitsPerModuleLayer1_FPIX_neg.push_back(pxfL1n);
 		nSimHitsPerModuleLayer2_FPIX_neg.push_back(pxfL2n);
 		nSimHitsPerModuleLayer3_FPIX_neg.push_back(pxfL3n);
+		simHit_x.push_back(rx);
+		simHit_y.push_back(ry);
+		simHit_z.push_back(rz);
+		simHit_l.push_back(rl);
 	}
 
 	// ---------------- TP to Cluster Association ------------------------------------------------------
@@ -669,6 +719,8 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 			unsigned int nHitsPerLayer_BPIX[4] = {0};				
 			unsigned int nHitsPerLayer_FPIX[6] = {0};	
 			std::vector<int> pxbL1(0),pxbL2(0),pxbL3(0),pxbL4(0),pxfL1p(0),pxfL2p(0),pxfL3p(0),pxfL1n(0),pxfL2n(0),pxfL3n(0);
+			std::vector<float> rx(0),ry(0),rz(0);
+			std::vector<int> rl(0);
 
 			auto clusterRange = std::equal_range(clusterTPmap.begin(), clusterTPmap.end(), std::make_pair(OmniClusterRef(), (*it)), compare);
 			if (clusterRange.first != clusterRange.second) 
@@ -695,8 +747,15 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 							const SiPixelRecHit* recHit = &(*recHitIterator);
 							int clusterSize = recHit->cluster()->size();
 
+							// rechit position in global coordinates
+							GlobalPoint gp = tGeom->idToDet(detId)->surface().toGlobal(recHit->localPosition());
+					
 							if(OmniClusterRef(recHit->cluster()) == cluster )
 							{
+								rx.push_back(gp.x());
+								ry.push_back(gp.y());
+								rz.push_back(gp.z());
+
 								if (detId.det() == DetId::Tracker && detId.subdetId() == PixelSubdetector::PixelBarrel)
 								{
 									if(verbose_)
@@ -704,18 +763,22 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 									if(tTopo->pxbLayer(detId)==1){
 										++nHitsPerLayer_BPIX[0];
 										pxbL1.push_back(tTopo->pxbModule(detId));
+										rl.push_back(1);
 									}							
 									if(tTopo->pxbLayer(detId)==2){
 										++nHitsPerLayer_BPIX[1];
 										pxbL2.push_back(tTopo->pxbModule(detId));
+										rl.push_back(2);
 									}	
 									if(tTopo->pxbLayer(detId)==3){
 										++nHitsPerLayer_BPIX[2];
 										pxbL3.push_back(tTopo->pxbModule(detId));
+										rl.push_back(3);
 									}	
 									if(tTopo->pxbLayer(detId)==4){
 										++nHitsPerLayer_BPIX[3];
 										pxbL4.push_back(tTopo->pxbModule(detId));
+										rl.push_back(4);
 									}
 								}
 								if (detId.det() == DetId::Tracker && detId.subdetId() == PixelSubdetector::PixelEndcap)
@@ -726,26 +789,32 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 									if(tTopo->pxfDisk(detId)==1 && tTopo->pxfSide(detId)==2){
 										++nHitsPerLayer_FPIX[0];
 										pxfL1p.push_back(tTopo->pxfModule(detId));
+										rl.push_back(5);
 									}
 									if(tTopo->pxfDisk(detId)==1 && tTopo->pxfSide(detId)==1){
 										++nHitsPerLayer_FPIX[3];							
 										pxfL1n.push_back(tTopo->pxfModule(detId));
+										rl.push_back(6);
 									}
 									if(tTopo->pxfDisk(detId)==2 && tTopo->pxfSide(detId)==2){
 										++nHitsPerLayer_FPIX[1];
 										pxfL2p.push_back(tTopo->pxfModule(detId));
+										rl.push_back(7);
 									}
 									if(tTopo->pxfDisk(detId)==2 && tTopo->pxfSide(detId)==1){
 										++nHitsPerLayer_FPIX[4];	
 										pxfL2n.push_back(tTopo->pxfModule(detId));
+										rl.push_back(8);
 									}
 									if(tTopo->pxfDisk(detId)==3 && tTopo->pxfSide(detId)==2){
 										++nHitsPerLayer_FPIX[2];
 										pxfL3p.push_back(tTopo->pxfModule(detId));
+										rl.push_back(9);
 									}
 									if(tTopo->pxfDisk(detId)==3 && tTopo->pxfSide(detId)==1){
 										++nHitsPerLayer_FPIX[5];
 										pxfL3n.push_back(tTopo->pxfModule(detId));
+										rl.push_back(10);
 									}
 								}
 							}
@@ -799,7 +868,10 @@ void egSeedingEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 			nRecoHitsPerModuleLayer1_FPIX_neg.push_back(pxfL1n);
 			nRecoHitsPerModuleLayer2_FPIX_neg.push_back(pxfL2n);
 			nRecoHitsPerModuleLayer3_FPIX_neg.push_back(pxfL3n);
-
+			recHit_x.push_back(rx);
+			recHit_y.push_back(ry);
+			recHit_z.push_back(rz);
+			recHit_l.push_back(rl);
 		}
 	}
 	
