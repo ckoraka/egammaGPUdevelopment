@@ -131,7 +131,7 @@ def buildTriplets(pixelDoubletTypes):
     return numberOfTriplets
 
 
-def doubletQual(hits_x,hits_y,hits_z,hits_l):
+def doubletQual(hits_x,hits_y,hits_z,hits_l,cut=2):
 
     minz = [-20., 0., -30., -22., 10., -30., -70., -70., -22., 15., -30, -70., -70., -20., -22., 0, -30., -70., -70.,0]
     maxz = [20., 30., 0., 22., 30., -10., 70., 70., 22., 30., -15., 70., 70., 20., 22., 30., 0., 70., 70.,0]
@@ -163,12 +163,12 @@ def doubletQual(hits_x,hits_y,hits_z,hits_l):
                 idIn = ihit
                 idOut = jhit
             z = hits_z[idIn]
-            if((minz[combination]>z) or (maxz[combination]<z)):
+            if(((minz[combination]>z) or (maxz[combination]<z)) and cut >= 1):
                 continue
             dr = m.sqrt(hits_z[idOut]*hits_z[idOut] + hits_x[idOut]*hits_x[idOut] + hits_y[idOut]*hits_y[idOut]) - m.sqrt(hits_z[idIn]*hits_z[idIn] + hits_x[idIn]*hits_x[idIn] + hits_y[idIn]*hits_y[idIn])
             ro = m.sqrt(hits_z[idOut]*hits_z[idOut] + hits_x[idOut]*hits_x[idOut] + hits_y[idOut]*hits_y[idOut])
             mer = m.sqrt(hits_z[idIn]*hits_z[idIn] + hits_x[idIn]*hits_x[idIn] + hits_y[idIn]*hits_y[idIn])
-            if(dr> maxr[combination]):
+            if(dr> maxr[combination] and cut >= 2):
                 continue
             comb.append(combination)
     
@@ -234,7 +234,8 @@ def main(options, paths):
 
     pixelDoubletTypeSim = r.TH1F("pixelDoubletTypeSim",";Type of Pixel doublet ",20,0,20) 
     pixelDoubletTypeReco  = r.TH1F("pixelDoubletTypeReco",";Type of Pixel doublet ",20,0,20) 
-    pixelDoubletTypeRecoQualCut  = r.TH1F("pixelDoubletTypeRecoQualCUt",";Type of Pixel doublet ",20,0,20) 
+    pixelDoubletTypeRecoQualCut  = r.TH1F("pixelDoubletTypeRecoQualCut",";Type of Pixel doublet ",20,0,20) 
+    pixelDoubletTypeRecozCut  = r.TH1F("pixelDoubletTypeRecozCut",";Type of Pixel doublet ",20,0,20) 
 
     test = r.TH1F("test",";Type of Pixel doublet ",20,0,20) 
 
@@ -418,6 +419,11 @@ def main(options, paths):
                     #test.Fill(doubletsQuality[i],1)
                     pixelDoubletTypeRecoQualCut.Fill(doubletsQuality[i],1)
 
+                # Consider only z quality cuts
+                doubletsQuality_z = doubletQual(event.recHit_x[electron],event.recHit_y[electron],event.recHit_z[electron],event.recHit_l[electron],1)
+                for i in range(0,len(doubletsQuality_z)):
+                    pixelDoubletTypeRecozCut.Fill(doubletsQuality_z[i],1)
+                
                 # Build triplets
                 triplets = buildTriplets(doubletsQuality)
                 print('Number of Triplets : ',triplets)
@@ -830,11 +836,26 @@ def main(options, paths):
     pixelDoubletTypeReco.Draw("HIST same")
     paveCMS.Draw("same")
     l1 = r.TLegend(.7, .72, .89, .85)
-    l1.AddEntry(nSimHits,"Quality cuts","l")
-    l1.AddEntry(nRecoHits,"Reconstructed","l")
+    l1.AddEntry(pixelDoubletTypeRecoQualCut,"Quality cuts","l")
+    l1.AddEntry(pixelDoubletTypeReco,"Reconstructed","l")
     l1.Draw("same")
     c.SaveAs(dir+'/pixelDoubletType_QualCut.png')  
 
+    c = r.TCanvas("c", "canvas", 900, 700)
+    c.cd()
+    pixelDoubletTypeReco.SetLineColor(r.kRed)
+    pixelDoubletTypeReco.Draw("HIST")
+    pixelDoubletTypeRecozCut.SetLineColor(r.kBlue)
+    pixelDoubletTypeRecozCut.Draw("HIST same")
+    pixelDoubletTypeRecoQualCut.SetLineColor(r.kGreen)
+    pixelDoubletTypeRecoQualCut.Draw("HIST same")
+    paveCMS.Draw("same")
+    l2 = r.TLegend(.7, .72, .89, .85)
+    l2.AddEntry(pixelDoubletTypeReco,"No cuts applied","l")
+    l2.AddEntry(pixelDoubletTypeRecozCut,"z cut applied","l")
+    l2.AddEntry(pixelDoubletTypeRecoQualCut,"dr cut applied","l")
+    l2.Draw("same")
+    c.SaveAs(dir+'/pixelDoubletType_CompCuts.png')  
 
 if __name__ == '__main__':
     options, paths = parse_arguments()
