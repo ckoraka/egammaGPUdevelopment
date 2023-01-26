@@ -166,9 +166,10 @@ def doubletQual(hits_x,hits_y,hits_z,hits_l):
             if((minz[combination]>z) or (maxz[combination]<z)):
                 continue
             dr = m.sqrt(hits_z[idOut]*hits_z[idOut] + hits_x[idOut]*hits_x[idOut] + hits_y[idOut]*hits_y[idOut]) - m.sqrt(hits_z[idIn]*hits_z[idIn] + hits_x[idIn]*hits_x[idIn] + hits_y[idIn]*hits_y[idIn])
+            ro = m.sqrt(hits_z[idOut]*hits_z[idOut] + hits_x[idOut]*hits_x[idOut] + hits_y[idOut]*hits_y[idOut])
+            mer = m.sqrt(hits_z[idIn]*hits_z[idIn] + hits_x[idIn]*hits_x[idIn] + hits_y[idIn]*hits_y[idIn])
             if(dr> maxr[combination]):
                 continue
-            #print("combination, z , Dr : ",combination, z , dr)
             comb.append(combination)
     
     # Remove "Other combinations" encoded with 19 for tracking particles that have at least one doublet in the patatrack list
@@ -233,6 +234,7 @@ def main(options, paths):
 
     pixelDoubletTypeSim = r.TH1F("pixelDoubletTypeSim",";Type of Pixel doublet ",20,0,20) 
     pixelDoubletTypeReco  = r.TH1F("pixelDoubletTypeReco",";Type of Pixel doublet ",20,0,20) 
+    pixelDoubletTypeRecoQualCut  = r.TH1F("pixelDoubletTypeRecoQualCUt",";Type of Pixel doublet ",20,0,20) 
 
     test = r.TH1F("test",";Type of Pixel doublet ",20,0,20) 
 
@@ -413,7 +415,8 @@ def main(options, paths):
                 # Build doublets and triplets from hits and apply quality cuts 
                 doubletsQuality = doubletQual(event.recHit_x[electron],event.recHit_y[electron],event.recHit_z[electron],event.recHit_l[electron])
                 for i in range(0,len(doubletsQuality)):
-                    test.Fill(doubletsQuality[i],1)
+                    #test.Fill(doubletsQuality[i],1)
+                    pixelDoubletTypeRecoQualCut.Fill(doubletsQuality[i],1)
 
                 # Build triplets
                 triplets = buildTriplets(doubletsQuality)
@@ -820,11 +823,17 @@ def main(options, paths):
 
     c = r.TCanvas("c", "canvas", 900, 700)
     c.cd()
-    test.SetLineColor(r.kRed)
-    test.Draw("HIST")
+    pixelDoubletTypeRecoQualCut.SetLineColor(r.kRed)
+    pixelDoubletTypeRecoQualCut.Draw("HIST")
+    pixelDoubletTypeReco.SetLineColor(r.kBlue)
+    #pixelDoubletTypeReco.SetLineWidth(2)
+    pixelDoubletTypeReco.Draw("HIST same")
     paveCMS.Draw("same")
-    l0.Draw("same")
-    c.SaveAs(dir+'/test.png')  
+    l1 = r.TLegend(.7, .72, .89, .85)
+    l1.AddEntry(nSimHits,"Quality cuts","l")
+    l1.AddEntry(nRecoHits,"Reconstructed","l")
+    l1.Draw("same")
+    c.SaveAs(dir+'/pixelDoubletType_QualCut.png')  
 
 
 if __name__ == '__main__':
