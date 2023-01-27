@@ -174,10 +174,10 @@ def doubletQual(hits_x,hits_y,hits_z,hits_l,cut=2):
             # https://cmssdt.cern.ch/dxr/CMSSW/source/RecoLocalTracker/SiPixelRecHits/plugins/gpuPixelRecHits.h#200
             ro = m.sqrt(hits_x[idOut]*hits_x[idOut] + hits_y[idOut]*hits_y[idOut])
             mer = m.sqrt(hits_x[idIn]*hits_x[idIn] + hits_y[idIn]*hits_y[idIn])
-
-            # std::abs((z * ro - mer * hits_z[idOut])) > z0cut * dr  
-            # what is the value of z0cut?
-            if( (((ro-mer)> maxr[combination]) or ((ro-mer)<0)) and cut >= 2):
+            dr = ro - mer
+            # https://github.com/cms-sw/cmssw/blob/master/Geometry/CommonTopologies/interface/SimplePixelTopology.h#L425
+            z0cut = 12
+            if( ((dr > maxr[combination]) or (dr<0)  or (abs((z * ro - mer * hits_z[idOut])) > z0cut * dr)) and cut >= 2):
                 continue
             comb.append(combination)
     
@@ -198,7 +198,7 @@ def doubletQual(hits_x,hits_y,hits_z,hits_l,cut=2):
 def main(options, paths):
 
     noGsfEleMatching = False
-    tree = "egammaReconstructionEE"
+    tree = "egammaReconstructionEB"
 
     r.gStyle.SetOptStat(0)
     nSimHits = r.TH1F("nSimHits",";Number of BPIX Layers with Hits",6,0,6) 
@@ -246,7 +246,11 @@ def main(options, paths):
     pixelDoubletTypeRecoQualCut  = r.TH1F("pixelDoubletTypeRecoQualCut",";Type of Pixel doublet ",20,0,20) 
     pixelDoubletTypeRecozCut  = r.TH1F("pixelDoubletTypeRecozCut",";Type of Pixel doublet ",20,0,20) 
 
-    test = r.TH1F("test",";Type of Pixel doublet ",20,0,20) 
+    nTriplets = r.TH1F("nTriplets",";Number of Pixel triplets ",10,0,10) 
+    nTripletszCut = r.TH1F("nTripletszCut",";Number of Pixel triplets ",10,0,10) 
+    nTripletsQualCut = r.TH1F("nTripletsQualCut",";Number of Pixel triplets ",10,0,10) 
+
+    dnTriplets = r.TH1F("dnTriplets",";#triplets no quality cuts - #triplets with quality cuts ",10,-5,5) 
 
 
     recoElepT = r.TH1F("recoPt",";p_{T} [GeV]",20,0.,100.) 
@@ -440,9 +444,10 @@ def main(options, paths):
                 triplets_z = buildTriplets(doubletsQuality_z)
                 triplets = buildTriplets(doublets_b)
 
-                print('Number of Triplets no cuts : ',triplets)
-                print('Number of Triplets z cuts only : ',triplets_z)
-                print('Number of Triplets all cuts : ',triplets_all)
+                nTriplets.Fill(triplets,1.)
+                nTripletszCut.Fill(triplets_z,1.)
+                nTripletsQualCut.Fill(triplets_all,1.)
+                dnTriplets.Fill(triplets - triplets_all,1.)
 
                 nRecoHits.Fill(event.nRecoHitLayersBPIX[electron])  
                 nRecoHitsL1.Fill(event.nRecoHitsLayer1_BPIX[electron])  
@@ -844,21 +849,6 @@ def main(options, paths):
     c = plotHitsPerModule(reco_moduleHistsFPIX_L2,dir+"/nRecoHitsPerModule_L2_FPIX.png")
     c = plotHitsPerModule(reco_moduleHistsFPIX_L3,dir+"/nRecoHitsPerModule_L3_FPIX.png")
 
-
-    c = r.TCanvas("c", "canvas", 900, 700)
-    c.cd()
-    pixelDoubletTypeRecoQualCut.SetLineColor(r.kRed)
-    pixelDoubletTypeRecoQualCut.Draw("HIST")
-    pixelDoubletTypeReco.SetLineColor(r.kBlue)
-    #pixelDoubletTypeReco.SetLineWidth(2)
-    pixelDoubletTypeReco.Draw("HIST same")
-    paveCMS.Draw("same")
-    l1 = r.TLegend(.7, .72, .89, .85)
-    l1.AddEntry(pixelDoubletTypeRecoQualCut,"Quality cuts","l")
-    l1.AddEntry(pixelDoubletTypeReco,"Reconstructed","l")
-    l1.Draw("same")
-    c.SaveAs(dir+'/pixelDoubletType_QualCut.png')  
-
     c = r.TCanvas("c", "canvas", 900, 700)
     c.cd()
     pixelDoubletTypeReco.SetLineColor(r.kBlack)
@@ -868,12 +858,34 @@ def main(options, paths):
     pixelDoubletTypeRecoQualCut.SetLineColor(r.kRed)
     pixelDoubletTypeRecoQualCut.Draw("HIST same")
     paveCMS.Draw("same")
-    l2 = r.TLegend(.4, .72, .59, .85)
+    l2 = r.TLegend(.75, .72, .9, .85)
     l2.AddEntry(pixelDoubletTypeReco,"No cuts applied","l")
     l2.AddEntry(pixelDoubletTypeRecozCut,"z cut applied","l")
-    l2.AddEntry(pixelDoubletTypeRecoQualCut,"dr cut applied","l")
+    l2.AddEntry(pixelDoubletTypeRecoQualCut,"z+dr cut applied","l")
     l2.Draw("same")
     c.SaveAs(dir+'/pixelDoubletType_CompCuts.png')  
+
+    c = r.TCanvas("c", "canvas", 900, 700)
+    c.cd()
+    nTriplets.SetLineColor(r.kBlack)
+    nTriplets.Draw("HIST")
+    nTripletszCut.SetLineColor(r.kBlue)
+    nTripletszCut.Draw("HIST same")
+    nTripletsQualCut.SetLineColor(r.kRed)
+    nTripletsQualCut.Draw("HIST same")
+    paveCMS.Draw("same")
+    l2 = r.TLegend(.4, .72, .59, .85)
+    l2.AddEntry(nTriplets,"No cuts applied","l")
+    l2.AddEntry(nTripletszCut,"z cut applied","l")
+    l2.AddEntry(nTripletsQualCut,"z+dr cut applied","l")
+    l2.Draw("same")
+    c.SaveAs(dir+'/nTriplets_CompCuts.png')  
+
+    c = r.TCanvas("c", "canvas", 900, 700)
+    c.cd()
+    dnTriplets.Draw("TEXT HIST")
+    paveCMS.Draw("same")
+    c.SaveAs(dir+'/TripletsDiff_w_wo_cuts.png')  
 
 if __name__ == '__main__':
     options, paths = parse_arguments()
