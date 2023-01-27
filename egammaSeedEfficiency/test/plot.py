@@ -124,8 +124,6 @@ def buildTriplets(pixelDoubletTypes):
     for doublet1 in range(0,len(pixelDoubletTypes)):
         for doublet2 in range(doublet1,len(pixelDoubletTypes)):
             if pixelDoubletTypes[doublet2] in tripletList[pixelDoubletTypes[doublet1]]:
-                #print('Lala',pixelDoubletTypes[doublet1],pixelDoubletTypes[doublet2])
-                #print(tripletList[pixelDoubletTypes[doublet1]])
                 numberOfTriplets = numberOfTriplets + 1
 
     return numberOfTriplets
@@ -150,25 +148,36 @@ def doubletQual(hits_x,hits_y,hits_z,hits_l,cut=2):
             hitIdLayer[hits_l[jhit]-1] = 1
             doublet = doubletComb(hitIdLayer[0],hitIdLayer[1],hitIdLayer[2],hitIdLayer[3],hitIdLayer[4],hitIdLayer[6],hitIdLayer[8],hitIdLayer[5],hitIdLayer[7],hitIdLayer[9])
             combination = doublet.index(max(doublet))
+
             # Duplicate combinations
             if(collection[combination]==1):
                 continue
             else:
                 collection[combination]=1
 
+            # In all cases inner < outer e.g. [l1,l2] for all doublets :
+            #       [[1,2],[1,5],[1,6],[2,3],[2,5],[2,6],
+            #        [5,7],[6,8],[3,4],[3,5],[3,6],[7,9],
+            #        [8,10],[1,3],[2,4],[1,7],[1,8],[5,9],[6,10]]
+
             # Quality cuts
-            idIn = jhit
-            idOut = ihit
-            if(hits_l[ihit]<hits_l[jhit]):
-                idIn = ihit
-                idOut = jhit
+            idIn = ihit
+            idOut = jhit
+            if(hits_l[ihit]>hits_l[jhit]): 
+                idIn = jhit
+                idOut = ihit
+
             z = hits_z[idIn]
             if(((minz[combination]>z) or (maxz[combination]<z)) and cut >= 1):
                 continue
-            dr = m.sqrt(hits_z[idOut]*hits_z[idOut] + hits_x[idOut]*hits_x[idOut] + hits_y[idOut]*hits_y[idOut]) - m.sqrt(hits_z[idIn]*hits_z[idIn] + hits_x[idIn]*hits_x[idIn] + hits_y[idIn]*hits_y[idIn])
-            ro = m.sqrt(hits_z[idOut]*hits_z[idOut] + hits_x[idOut]*hits_x[idOut] + hits_y[idOut]*hits_y[idOut])
-            mer = m.sqrt(hits_z[idIn]*hits_z[idIn] + hits_x[idIn]*hits_x[idIn] + hits_y[idIn]*hits_y[idIn])
-            if(dr> maxr[combination] and cut >= 2):
+            # rGlobal() definition
+            # https://cmssdt.cern.ch/dxr/CMSSW/source/RecoLocalTracker/SiPixelRecHits/plugins/gpuPixelRecHits.h#200
+            ro = m.sqrt(hits_x[idOut]*hits_x[idOut] + hits_y[idOut]*hits_y[idOut])
+            mer = m.sqrt(hits_x[idIn]*hits_x[idIn] + hits_y[idIn]*hits_y[idIn])
+
+            # std::abs((z * ro - mer * hits_z[idOut])) > z0cut * dr  
+            # what is the value of z0cut?
+            if( (((ro-mer)> maxr[combination]) or ((ro-mer)<0)) and cut >= 2):
                 continue
             comb.append(combination)
     
@@ -416,17 +425,24 @@ def main(options, paths):
                 # Build doublets and triplets from hits and apply quality cuts 
                 doubletsQuality = doubletQual(event.recHit_x[electron],event.recHit_y[electron],event.recHit_z[electron],event.recHit_l[electron])
                 for i in range(0,len(doubletsQuality)):
-                    #test.Fill(doubletsQuality[i],1)
                     pixelDoubletTypeRecoQualCut.Fill(doubletsQuality[i],1)
 
                 # Consider only z quality cuts
                 doubletsQuality_z = doubletQual(event.recHit_x[electron],event.recHit_y[electron],event.recHit_z[electron],event.recHit_l[electron],1)
                 for i in range(0,len(doubletsQuality_z)):
                     pixelDoubletTypeRecozCut.Fill(doubletsQuality_z[i],1)
-                
+
+                # Consider no cuts
+                doublets_b = doubletQual(event.recHit_x[electron],event.recHit_y[electron],event.recHit_z[electron],event.recHit_l[electron],0)
+
                 # Build triplets
-                triplets = buildTriplets(doubletsQuality)
-                print('Number of Triplets : ',triplets)
+                triplets_all = buildTriplets(doubletsQuality)
+                triplets_z = buildTriplets(doubletsQuality_z)
+                triplets = buildTriplets(doublets_b)
+
+                print('Number of Triplets no cuts : ',triplets)
+                print('Number of Triplets z cuts only : ',triplets_z)
+                print('Number of Triplets all cuts : ',triplets_all)
 
                 nRecoHits.Fill(event.nRecoHitLayersBPIX[electron])  
                 nRecoHitsL1.Fill(event.nRecoHitsLayer1_BPIX[electron])  
@@ -477,6 +493,8 @@ def main(options, paths):
                 doubletsReco = doubletComb(event.nRecoHitsLayer1_BPIX[electron],event.nRecoHitsLayer2_BPIX[electron],event.nRecoHitsLayer3_BPIX[electron],event.nRecoHitsLayer4_BPIX[electron],
                                     event.nRecoHitsLayer1_FPIX_pos[electron],event.nRecoHitsLayer2_FPIX_pos[electron],event.nRecoHitsLayer3_FPIX_pos[electron],
                                     event.nRecoHitsLayer1_FPIX_neg[electron],event.nRecoHitsLayer2_FPIX_neg[electron],event.nRecoHitsLayer3_FPIX_neg[electron])
+
+
 
                 for index in range(0,len(doubletsReco)):
                     pixelDoubletTypeReco.Fill(index,doubletsReco[index])
@@ -843,14 +861,14 @@ def main(options, paths):
 
     c = r.TCanvas("c", "canvas", 900, 700)
     c.cd()
-    pixelDoubletTypeReco.SetLineColor(r.kRed)
+    pixelDoubletTypeReco.SetLineColor(r.kBlack)
     pixelDoubletTypeReco.Draw("HIST")
     pixelDoubletTypeRecozCut.SetLineColor(r.kBlue)
     pixelDoubletTypeRecozCut.Draw("HIST same")
-    pixelDoubletTypeRecoQualCut.SetLineColor(r.kGreen)
+    pixelDoubletTypeRecoQualCut.SetLineColor(r.kRed)
     pixelDoubletTypeRecoQualCut.Draw("HIST same")
     paveCMS.Draw("same")
-    l2 = r.TLegend(.7, .72, .89, .85)
+    l2 = r.TLegend(.4, .72, .59, .85)
     l2.AddEntry(pixelDoubletTypeReco,"No cuts applied","l")
     l2.AddEntry(pixelDoubletTypeRecozCut,"z cut applied","l")
     l2.AddEntry(pixelDoubletTypeRecoQualCut,"dr cut applied","l")
