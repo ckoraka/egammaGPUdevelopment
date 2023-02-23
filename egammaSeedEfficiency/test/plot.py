@@ -11,6 +11,9 @@ r.gROOT.SetBatch(True)
 
 from optparse import OptionParser
 
+minz = [-20., 0., -30., -22., 10., -30., -70., -70., -22., 15., -30, -70., -70., -20., -22., 0, -30., -70., -70.,0]
+maxz = [20., 30., 0., 22., 30., -10., 70., 70., 22., 30., -15., 70., 70., 20., 22., 30., 0., 70., 70.,0]
+maxr = [20., 9., 9., 20., 7., 7., 5., 5., 20., 6., 6., 5., 5., 20., 20., 9., 9., 9., 9.,0]
 def parse_arguments():
     usage = """ 
     usage: %prog [options] Calculates expected pseudosignificance
@@ -194,6 +197,71 @@ def doubletQual(hits_x,hits_y,hits_z,hits_l,cut=2):
 
     return comb
 
+def dr_dz_pair(hits_x,hits_y,hits_z,hits_l,doub_num,cut = 2):
+    minz = [-20., 0., -30., -22., 10., -30., -70., -70., -22., 15., -30, -70., -70., -20., -22., 0, -30., -70., -70.,0]
+    maxz = [20., 30., 0., 22., 30., -10., 70., 70., 22., 30., -15., 70., 70., 20., 22., 30., 0., 70., 70.,0]
+    maxr = [20., 9., 9., 20., 7., 7., 5., 5., 20., 6., 6., 5., 5., 20., 20., 9., 9., 9., 9.,0]
+    rz_pair_arr = []
+    for ihit in range(0,len(hits_l)-1):
+        for jhit in range(ihit+1,len(hits_l)):
+            hitIdLayer = [0]*10
+            # Skip checking hits in the same layer
+            if(hits_l[ihit]==hits_l[jhit]):
+                continue
+            hitIdLayer[hits_l[ihit]-1] = 1
+            hitIdLayer[hits_l[jhit]-1] = 1
+            doublet = doubletComb(hitIdLayer[0],hitIdLayer[1],hitIdLayer[2],hitIdLayer[3],hitIdLayer[4],hitIdLayer[6],hitIdLayer[8],hitIdLayer[5],hitIdLayer[7],hitIdLayer[9])
+            combination = doublet.index(max(doublet))
+            
+            if (combination != doub_num): #Not doublet of interest
+               #print("Combination = " + str(combination) + "\nDoublet number = " + str(doub_num))
+               continue
+            #else:
+               #print("Valid doublet number/combination")
+
+            # In all cases inner < outer e.g. [l1,l2] for all doublets :
+            #       [[1,2],[1,5],[1,6],[2,3],[2,5],[2,6],
+            #        [5,7],[6,8],[3,4],[3,5],[3,6],[7,9],
+            #        [8,10],[1,3],[2,4],[1,7],[1,8],[5,9],[6,10]]
+            
+
+
+            # Quality cuts
+            idIn = ihit
+            idOut = jhit
+            if(hits_l[ihit]>hits_l[jhit]): 
+                idIn = jhit
+                idOut = ihit
+
+            ro = m.sqrt(hits_x[idOut]*hits_x[idOut] + hits_y[idOut]*hits_y[idOut])
+            mer = m.sqrt(hits_x[idIn]*hits_x[idIn] + hits_y[idIn]*hits_y[idIn])
+            dr = ro - mer
+            
+            z = hits_z[idIn]
+            rz_pair = (dr,z)
+            if(((minz[combination]>z) or (maxz[combination]<z)) and cut >= 1):
+                #print("dz cut")
+                continue
+            # rGlobal() definition
+            # https://cmssdt.cern.ch/dxr/CMSSW/source/RecoLocalTracker/SiPixelRecHits/plugins/gpuPixelRecHits.h#200
+
+            # https://github.com/cms-sw/cmssw/blob/master/Geometry/CommonTopologies/interface/SimplePixelTopology.h#L425
+            z0cut = 12
+            if( ((dr > maxr[combination]) or (dr<0)  or (abs((z * ro - mer * hits_z[idOut])) > z0cut * dr)) and cut >= 2):
+                continue
+            #comb.append(combination)
+            rz_pair_arr.append(rz_pair)
+    # Remove "Other combinations" encoded with 19 for tracking particles that have at least one doublet in the patatrack list
+    #hasCombination = False
+    #hasAtLeastOne = False
+    #for combination in range(0,len(comb)):
+    #    if(comb[combination] < 19 and comb[combination] > 0):
+    #        hasAtLeastOne = True
+    #    if(comb[combination] == 19):
+    #        hasCombination = True
+    #if(hasCombination and hasAtLeastOne):
+    #    comb.remove(19)
+    return rz_pair_arr
 
 def main(options, paths):
 
@@ -258,6 +326,29 @@ def main(options, paths):
     recoElePhi = r.TH1F("recoPhi",";#phi",21,-3.15,3.15) 
 
     recoZpeak = r.TH1F("recoMass",";mass [GeV]",20,50.,150.)
+    
+    dr_doublet_NoCut = []
+    dz_doublet_NoCut = []
+    dr_doublet_ZCut = []
+    dz_doublet_ZCut = []
+    dr_doublet_ZdrCut = []
+    dz_doublet_ZdrCut = []
+
+    for doubIndx in range(20):
+       if (doubIndx != 19):
+           dr_doublet_NoCut.append(r.TH1F("dr_nocut_doublet_%d"%doubIndx,"dr of doublet %s" % str(doubIndx),50,0,40))
+           dz_doublet_NoCut.append(r.TH1F("dz_nocut_doublet_%d"%doubIndx,"dz of doublet %s" % str(doubIndx),50,minz[doubIndx] - 10,maxz[doubIndx] + 10))
+           dr_doublet_ZCut.append(r.TH1F("dr_doublet_zcut_%d"%doubIndx,"dr of doublet %s (z cuts)" % str(doubIndx),50,0,40))
+           dz_doublet_ZCut.append(r.TH1F("dz_doublet_zcut_%d"%doubIndx,"dz of doublet %s (z cuts)" % str(doubIndx),50,minz[doubIndx] - 10,maxz[doubIndx] + 10))
+           dr_doublet_ZdrCut.append(r.TH1F("dr_doublet_allcut_%d"%doubIndx,"dr of doublet %s (all cuts)" % str(doubIndx),50,0,40))
+           dz_doublet_ZdrCut.append(r.TH1F("dz_doublet_allcut_%d"%doubIndx,"dz of doublet %s (all cuts)" % str(doubIndx),50,minz[doubIndx] - 10,maxz[doubIndx] + 10))
+       if (doubIndx == 19):
+           dr_doublet_NoCut.append(r.TH1F("dr_doublet_nocut_%d"%doubIndx,"dr of doublet %s" % str(doubIndx),50,0,40))
+           dz_doublet_NoCut.append(r.TH1F("dz_nocut_doublet_%d"%doubIndx,"dz of doublet %s" % str(doubIndx),50,-70,70))
+           dr_doublet_ZCut.append(r.TH1F("dr_doublet_zcut_%d"%doubIndx,"dr of doublet %s (z cuts)" % str(doubIndx),50,0,40))
+           dz_doublet_ZCut.append(r.TH1F("dz_doublet_zcut_%d"%doubIndx,"dz of doublet %s (z cuts)" % str(doubIndx),50,-70,70))
+           dr_doublet_ZdrCut.append(r.TH1F("dr_doublet_allcut_%d"%doubIndx,"dr of doublet %s (all cuts)" % str(doubIndx),50,0,40))
+           dz_doublet_ZdrCut.append(r.TH1F("dz_doublet_allcut_%d"%doubIndx,"dz of doublet %s (all cuts)" % str(doubIndx),50,-70,70))
 
     sim_moduleHistsBPIX_L1=[]
     sim_moduleHistsBPIX_L2=[]
@@ -428,16 +519,34 @@ def main(options, paths):
 
                 # Build doublets and triplets from hits and apply quality cuts 
                 doubletsQuality = doubletQual(event.recHit_x[electron],event.recHit_y[electron],event.recHit_z[electron],event.recHit_l[electron])
+                for pairNum in range(20):
+                    pairArr = dr_dz_pair(event.recHit_x[electron],event.recHit_y[electron],event.recHit_z[electron],event.recHit_l[electron],pairNum,2)
+                    if (len(pairArr) != 0):
+                        for i in range(len(pairArr)):
+                            dr_doublet_ZdrCut[pairNum].Fill(pairArr[i][0])
+                            dz_doublet_ZdrCut[pairNum].Fill(pairArr[i][1])
                 for i in range(0,len(doubletsQuality)):
                     pixelDoubletTypeRecoQualCut.Fill(doubletsQuality[i],1)
 
                 # Consider only z quality cuts
                 doubletsQuality_z = doubletQual(event.recHit_x[electron],event.recHit_y[electron],event.recHit_z[electron],event.recHit_l[electron],1)
+                for pairNum in range(20):
+                    pairArr = dr_dz_pair(event.recHit_x[electron],event.recHit_y[electron],event.recHit_z[electron],event.recHit_l[electron],pairNum,1)
+                    if (len(pairArr) != 0):
+                        for i in range(len(pairArr)):
+                            dr_doublet_ZCut[pairNum].Fill(pairArr[i][0])
+                            dz_doublet_ZCut[pairNum].Fill(pairArr[i][1])
                 for i in range(0,len(doubletsQuality_z)):
                     pixelDoubletTypeRecozCut.Fill(doubletsQuality_z[i],1)
 
                 # Consider no cuts
                 doublets_b = doubletQual(event.recHit_x[electron],event.recHit_y[electron],event.recHit_z[electron],event.recHit_l[electron],0)
+                for pairNum in range(20):
+                    pairArr = dr_dz_pair(event.recHit_x[electron],event.recHit_y[electron],event.recHit_z[electron],event.recHit_l[electron],pairNum,0)
+                    if (len(pairArr) != 0):
+                        for i in range(len(pairArr)):
+                            dr_doublet_NoCut[pairNum].Fill(pairArr[i][0])
+                            dz_doublet_NoCut[pairNum].Fill(pairArr[i][1])
 
                 # Build triplets
                 triplets_all = buildTriplets(doubletsQuality)
@@ -886,7 +995,48 @@ def main(options, paths):
     dnTriplets.Draw("TEXT HIST")
     paveCMS.Draw("same")
     c.SaveAs(dir+'/TripletsDiff_w_wo_cuts.png')  
+    
+    #dr Distributions for each doublet
+    for i in range(20):
+        print("=======Doublet %d======="%i)
+        c = r.TCanvas("c", "canvas", 900, 700)
+        c.cd()
+        print("No Cut Entries = " + str(dr_doublet_NoCut[i].GetEntries()))
+        dr_doublet_NoCut[i].SetLineColor(r.kBlack)
+        dr_doublet_NoCut[i].Draw("HIST")
+        dr_doublet_ZCut[i].SetLineColor(r.kBlue)
+        print("Z Cut Entries = " + str(dr_doublet_ZCut[i].GetEntries()))
+        dr_doublet_ZCut[i].Draw("HIST same")
+        dr_doublet_ZdrCut[i].SetLineColor(r.kRed)
+        print("All cuts Entries = " + str(dr_doublet_ZdrCut[i].GetEntries()))
+        dr_doublet_ZdrCut[i].Draw("HIST same")
+        
+        #legend
+        l3 = r.TLegend(0.75,0.72,0.9,0.85)
+        l3.AddEntry(dr_doublet_NoCut[i],"No cuts applied","l")
+        l3.AddEntry(dr_doublet_ZCut[i],"z cut applied","l")
+        l3.AddEntry(dr_doublet_ZdrCut[i],"z+dr cut applied","l")
+        l3.Draw("same")
+        c.SaveAs(dir+"/Doublet_" + str(i) + "_dr_Hist.png")
 
+    #dr Distributions for each doublet
+    for i in range(20):
+        c = r.TCanvas("c", "canvas", 900, 700)
+        c.cd()
+        dz_doublet_NoCut[i].SetLineColor(r.kBlack)
+        dz_doublet_NoCut[i].Draw("HIST")
+        dz_doublet_ZCut[i].SetLineColor(r.kBlue)
+        dz_doublet_ZCut[i].Draw("HIST same")
+        dz_doublet_ZdrCut[i].SetLineColor(r.kRed)
+        dz_doublet_ZdrCut[i].Draw("HIST same")
+        
+        #legend
+        l3 = r.TLegend(0.75,0.72,0.9,0.85)
+        l3.AddEntry(dz_doublet_NoCut[i],"No cuts applied","l")
+        l3.AddEntry(dz_doublet_ZCut[i],"z cut applied","l")
+        l3.AddEntry(dz_doublet_ZdrCut[i],"z+dr cut applied","l")
+        l3.Draw("same")
+        c.SaveAs(dir+"/Doublet_" + str(i) + "_dz_Hist.png")
 if __name__ == '__main__':
     options, paths = parse_arguments()
     main(options = options, paths = paths)
