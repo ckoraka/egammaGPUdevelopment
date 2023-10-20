@@ -1,13 +1,13 @@
 **EGamma seeding efficiency studies**
 
 
-This framework is used in order to check and compare the
+This framework is used in order to check and compare the doublets and triplets that can be constructed using gfs electron seed information
 
 
 **Install instructions**
 ```
-cmsrel CMSSW_12_6_0_pre4
-cd CMSSW_12_6_0_pre4/src
+cmsrel CMSSW_13_0_0
+cd CMSSW_13_0_0/src
 cmsenv
 git clone git@github.com:ckoraka/egammaGPUdevelopment.git
 scram b -j 8
@@ -16,7 +16,7 @@ scram b -j 8
 **Run instructions**
 ```
 cd egammaGPUdevelopment/egammaSeedEfficiency/test
-cmsRun hltRun3Summer21MC.py &> out.log
+cmsRun hlt.py &> out.log
 ```
 
 **Notes:** 
@@ -27,4 +27,4 @@ cmsRun hltRun3Summer21MC.py &> out.log
 ```
 edmDumpEventContent /store/relval/CMSSW_12_6_0_pre4/RelValZEE_14/GEN-SIM-DIGI-RAW/125X_mcRun3_2022_realistic_v4-v1/2580000/94a518d8-73e4-4cba-a97f-23f8c2c9834c.root
 ```
-3. To access the e/g seeds collection from the hltgsfelectrons one has to re-run the hlt via ```hltRun3Summer21MC.py```. 
+3. To access the e/g seeds collection from the hltgsfelectrons one has to re-run the hlt via ```hlt.py```. 
